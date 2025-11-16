@@ -57,13 +57,15 @@ impl CheckAndExtract {
         &mut self,
         instance_path: &Path,
         solution_path: &Path,
-    ) -> Result<(), CheckerError> {
+    ) -> Result<usize, CheckerError> {
         self.read_instance(instance_path)?;
         self.read_solution(solution_path)?;
 
-        self.check_solution()?;
+        self.check_solution()
+    }
 
-        Ok(())
+    pub fn into_solution_infos(self) -> Vec<(String, serde_json::Value)> {
+        self.solution_infos
     }
 
     fn read_instance(&mut self, path: &Path) -> Result<(), CheckerError> {

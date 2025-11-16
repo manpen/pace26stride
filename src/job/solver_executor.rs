@@ -8,11 +8,21 @@ use tokio::{
 };
 use tracing::{debug, trace};
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ChildExitStatus {
     BeforeTimeout(ExitStatus),
     WithinGrace(ExitStatus),
     Timeout,
+}
+
+impl ChildExitStatus {
+    pub fn is_success(self) -> bool {
+        match self {
+            ChildExitStatus::BeforeTimeout(exit_status) => exit_status.success(),
+            ChildExitStatus::WithinGrace(exit_status) => exit_status.success(),
+            ChildExitStatus::Timeout => false,
+        }
+    }
 }
 
 #[derive(Debug, Error)]
@@ -38,8 +48,8 @@ pub struct SolverExecutor {
     runtime: Option<Duration>,
 }
 
-const PATH_STDOUT: &str = "stdout";
-const PATH_STDERR: &str = "stderr";
+pub const PATH_STDOUT: &str = "stdout";
+pub const PATH_STDERR: &str = "stderr";
 
 impl SolverExecutor {
     pub async fn run(&mut self) -> Result<ChildExitStatus, ExecutorError> {
