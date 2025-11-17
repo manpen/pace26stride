@@ -15,6 +15,8 @@ use pace26checker::{
 };
 use tracing::{error, warn};
 
+use crate::run_directory::CreateInstanceDirError;
+
 #[derive(Default)]
 pub struct CheckAndExtract {
     instance_path: PathBuf,
@@ -31,6 +33,9 @@ pub struct CheckAndExtract {
 pub enum CheckerError {
     #[error("IO error: {0}")]
     Io(#[from] std::io::Error),
+
+    #[error("CreateInstanceDir error: {0}")]
+    CreateInstanceDirError(#[from] CreateInstanceDirError),
 
     #[error("Instance input error: {0}")]
     InstanceInputError(#[from] InstanceVisitorError),
@@ -107,6 +112,9 @@ impl CheckAndExtract {
         for w in &visitor.warnings {
             warn!("[{:?}] {w:?}", self.instance_path);
         }
+        if !visitor.errors.is_empty() {
+            return Err(CheckerError::SolutionInputError(visitor.errors.remove(0)));
+        }
 
         self.solution_infos = std::mem::take(&mut visitor.stride_lines);
         self.solution_forest = std::mem::take(&mut visitor.trees);
@@ -115,8 +123,11 @@ impl CheckAndExtract {
     }
 
     fn check_solution(&mut self) -> Result<usize, CheckerError> {
+        assert!(!self.instance_trees.is_empty()); // should be handled by reader tests
         let solution_size = self.solution_forest.len();
-        for (instance_lineno, instance_tree) in std::mem::take(&mut self.solution_forest) {
+        assert!(solution_size > 0); // should be handled by the leaf cover tests, but be sure 
+
+        for (instance_lineno, instance_tree) in std::mem::take(&mut self.instance_trees) {
             let mut forest = BinForest::new(self.instance_num_leaves);
             forest = forest.add_tree(instance_tree.clone())?;
 
@@ -131,6 +142,7 @@ impl CheckAndExtract {
                 }
             }
         }
+
         Ok(solution_size)
     }
 }
@@ -138,22 +150,14 @@ impl CheckAndExtract {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    pub fn glob_pattern(key: &str) -> PathBuf {
-        PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-            .join("testcases")
-            .join(key)
-            .join("*.in")
-    }
+    use crate::test_helpers::*;
 
     #[test]
     fn test_valid_solutions() {
-        let pattern = glob_pattern("valid_instance_solution_pairs");
-        let instances = glob::glob(pattern.to_str().unwrap()).unwrap();
+        let instances = test_cases_glob("valid_solutions");
 
         let mut num_tests = 0;
         for instance_path in instances {
-            let instance_path = instance_path.unwrap();
             let solution_path = instance_path.with_extension("out");
 
             let mut checker = CheckAndExtract::new();
@@ -164,6 +168,33 @@ mod tests {
                 "Expected valid solution for instance {:?}, but got error: {:?}",
                 instance_path,
                 result.err()
+            );
+
+            num_tests += 1;
+        }
+
+        assert!(
+            num_tests > 0,
+            "No valid instance-solution pairs found for testing"
+        );
+    }
+
+    #[test]
+    fn test_invalid_solutions() {
+        let instances = test_cases_glob("invalid_solutions");
+
+        let mut num_tests = 0;
+        for instance_path in instances {
+            let solution_path = instance_path.with_extension("out");
+
+            let mut checker = CheckAndExtract::new();
+            let result = checker.process(&instance_path, &solution_path);
+
+            assert!(
+                result.is_err(),
+                "Expected invalid solution for instance {:?}, but got error: {:?}",
+                instance_path,
+                result
             );
 
             num_tests += 1;

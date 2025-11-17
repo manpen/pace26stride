@@ -9,7 +9,7 @@ pub const ENV_PARALLEL_JOBS: &str = "STRIDE_PARALLEL";
 pub const ENV_REQUIRE_OPTIMAL: &str = "STRIDE_OPTIMAL";
 pub const ENV_KEEP_LOGS: &str = "STRIDE_KEEP";
 
-#[derive(StructOpt, Debug)]
+#[derive(StructOpt, Debug, Default)]
 pub struct Opts {
     #[structopt(short, long, help = "List of instance files", required = true)]
     pub instances: Vec<PathBuf>,

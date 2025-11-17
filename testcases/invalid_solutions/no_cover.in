@@ -1,0 +1,3 @@
+# REQUIRE: Found only 3 leaves
+#p 1 4
+((1,2),(3,4));

@@ -1,5 +1,16 @@
 use std::path::{Path, PathBuf};
 
+use thiserror::Error;
+
+#[derive(Error, Debug)]
+pub enum CreateInstanceDirError {
+    #[error("Io error: {0}")]
+    Io(#[from] std::io::Error),
+
+    #[error("No valid instance name passed")]
+    EmptyInstanceName,
+}
+
 pub struct RunDirectory {
     path: PathBuf,
 }
@@ -9,7 +20,7 @@ const LOG_LATEST_LINK: &str = "latest";
 
 impl RunDirectory {
     pub fn new() -> Result<Self, std::io::Error> {
-        Self::new_within(&Path::new(LOG_PARENT_DIR))
+        Self::new_within(Path::new(LOG_PARENT_DIR))
     }
 
     pub fn new_within(parent: &Path) -> Result<Self, std::io::Error> {
@@ -60,7 +71,14 @@ impl RunDirectory {
 
     /// Create a subdirectory for the given instance name.
     /// If the directory already exists, appends a suffix to make it unique.
-    pub fn create_instance_dir(&self, instance_name: &str) -> Result<PathBuf, std::io::Error> {
+    pub fn create_instance_dir(
+        &self,
+        instance_name: &str,
+    ) -> Result<PathBuf, CreateInstanceDirError> {
+        if instance_name.is_empty() {
+            return Err(CreateInstanceDirError::EmptyInstanceName);
+        }
+
         for attempt in 0.. {
             let dir = if attempt == 0 {
                 self.path.join(instance_name)
@@ -71,11 +89,22 @@ impl RunDirectory {
             match std::fs::create_dir(&dir) {
                 Ok(()) => return Ok(dir),
                 Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => continue,
-                Err(e) => return Err(e),
+                Err(e) => return Err(CreateInstanceDirError::Io(e)),
             }
         }
 
         unreachable!()
+    }
+
+    pub fn create_instance_dir_for_path(
+        &self,
+        instance_path: &Path,
+    ) -> Result<PathBuf, CreateInstanceDirError> {
+        let instance_name = match instance_path.file_stem() {
+            Some(x) => x.to_string_lossy(),
+            None => return Err(CreateInstanceDirError::EmptyInstanceName),
+        };
+        self.create_instance_dir(&instance_name)
     }
 }
 

@@ -45,6 +45,7 @@ pub struct SolverExecutor {
     timeout: Duration,
     grace: Duration,
 
+    #[builder(default)]
     runtime: Option<Duration>,
 }
 
@@ -110,10 +111,10 @@ impl SolverExecutor {
         }
 
         // issue a grace period
-        if !self.grace.is_zero() {
-            if let Ok(res) = timeout(self.grace, child.wait()).await {
-                return Ok(ChildExitStatus::WithinGrace(res?));
-            }
+        if !self.grace.is_zero()
+            && let Ok(res) = timeout(self.grace, child.wait()).await
+        {
+            return Ok(ChildExitStatus::WithinGrace(res?));
         }
 
         debug!(
