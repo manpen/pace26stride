@@ -3,7 +3,7 @@ use pace26checker::checks::checker::*;
 
 pub type CommandCheckError = CheckerError;
 
-pub fn command_check(args: CommandCheckArgs) -> Result<(), CommandCheckError> {
+pub fn command_check(args: &CommandCheckArgs) -> Result<(), CommandCheckError> {
     if !args.quiet {
         tracing_subscriber::fmt()
             .with_writer(std::io::stderr)
