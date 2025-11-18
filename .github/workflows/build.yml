@@ -1,0 +1,92 @@
+name: Rust CI
+on: [push, pull_request]
+
+jobs:
+  build_linux:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Install musl
+        run: sudo apt install -y musl-dev musl-tools
+
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Rust
+        run: |
+          rustup target add x86_64-unknown-linux-musl
+          rustup component add rustfmt
+          rustup component add clippy
+
+      - name: Cache Cargo registry
+        uses: actions/cache@v3
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+          key: cargo-registry-linux
+      
+      - name: Cache Cargo build
+        uses: actions/cache@v3
+        with:
+          path: target
+          key: cargo-build-linux
+
+      - name: Build (small-release)
+        run: cargo build --profile smaller-release --target x86_64-unknown-linux-musl
+      
+      - name: Run tests
+        run: cargo test --verbose 
+
+      - name: Run tests (smaller release)
+        run: cargo test --verbose --profile smaller-release
+
+      - name: Run Cargo Clippy
+        run: cargo clippy
+
+      - name: Run Cargo Format
+        run: cargo fmt --check
+
+      - name: Run Cargo Doc
+        run: cargo doc --no-deps
+
+      - name: Archive binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: pace26checker-x86_64-linux
+          path: target/x86_64-unknown-linux-musl/smaller-release/checker
+
+  build_osx:
+    runs-on: macos-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Cache Cargo registry
+        uses: actions/cache@v3
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+          key: cargo-registry-osx
+      
+      - name: Cache Cargo build
+        uses: actions/cache@v3
+        with:
+          path: target
+          key: cargo-build-osx
+      
+      - name: Build
+        run: cargo build --profile smaller-release
+
+      - name: Run tests
+        run: cargo test 
+
+      - name: Run tests (smaller release)
+        run: cargo test --profile smaller-release
+
+      - name: Archive binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: pace26checker-osx
+          path: target/smaller-release/checker
+
