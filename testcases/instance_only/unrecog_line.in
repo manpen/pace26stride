@@ -1,0 +1,5 @@
+# REQUIRE: Line 5 is neither
+#p 2 2
+(1,2);
+(2,1);
+dummy

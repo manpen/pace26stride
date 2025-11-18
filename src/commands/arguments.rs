@@ -9,8 +9,32 @@ pub const ENV_PARALLEL_JOBS: &str = "STRIDE_PARALLEL";
 pub const ENV_REQUIRE_OPTIMAL: &str = "STRIDE_OPTIMAL";
 pub const ENV_KEEP_LOGS: &str = "STRIDE_KEEP";
 
+#[derive(StructOpt, Debug)]
+pub enum Arguments {
+    #[structopt(about = "Check a solution file")]
+    Check(CommandCheckArgs),
+
+    #[structopt(about = "Run solver and postprocess solution")]
+    Run(CommandRunArgs),
+}
+
 #[derive(StructOpt, Debug, Default)]
-pub struct Opts {
+pub struct CommandCheckArgs {
+    #[structopt()]
+    pub instance: PathBuf,
+
+    #[structopt()]
+    pub solution: Option<PathBuf>,
+
+    #[structopt(short, long)]
+    pub quiet: bool,
+
+    #[structopt(short, long)]
+    pub paranoid: bool,
+}
+
+#[derive(StructOpt, Debug, Default)]
+pub struct CommandRunArgs {
     #[structopt(short, long, help = "List of instance files", required = true)]
     pub instances: Vec<PathBuf>,
 
@@ -60,23 +84,25 @@ fn default_parallel_jobs() -> u64 {
     num_cpus::get_physical() as u64
 }
 
-pub fn get_args() -> Opts {
-    let mut opts = Opts::from_args();
+pub fn parse_prog_arguments() -> Arguments {
+    let mut opts = Arguments::from_args();
 
-    if opts.parallel_jobs.is_none() {
-        opts.parallel_jobs = Some(default_parallel_jobs());
-    }
+    if let Arguments::Run(opts) = &mut opts {
+        if opts.parallel_jobs.is_none() {
+            opts.parallel_jobs = Some(default_parallel_jobs());
+        }
 
-    if opts.instances.is_empty() {
-        panic!("No instance provided using --instance argument");
-    }
+        if opts.instances.is_empty() {
+            panic!("No instance provided using --instance argument");
+        }
 
-    if opts.solver.parent().is_none() && !opts.solver.starts_with("./") {
-        // TODO: We could automatically fix this instead of panicking.
-        // But it seems to be better to make the user aware of this.
-        panic!(
-            "It seems like you provided a relative solver path without './' prefix. Please add './' to the solver path or provide an absolute path."
-        );
+        if opts.solver.parent().is_none() && !opts.solver.starts_with("./") {
+            // TODO: We could automatically fix this instead of panicking.
+            // But it seems to be better to make the user aware of this.
+            panic!(
+                "It seems like you provided a relative solver path without './' prefix. Please add './' to the solver path or provide an absolute path."
+            );
+        }
     }
 
     opts

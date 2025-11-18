@@ -1,0 +1,5 @@
+# REQUIRE: Line 3 starts with `#`
+#p 2 2
+#error
+(1,2);
+(2,1);
