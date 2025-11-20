@@ -3,8 +3,7 @@
 // fully build.
 
 use pace26stride::{
-    commands::arguments::CommandRunArgs,
-    job::job_processor::{JobProcessor, JobProgress},
+    job::job_processor::{JobProcessorBuilder, JobProgress},
     run_directory::RunDirectory,
     test_helpers::*,
 };
@@ -15,39 +14,34 @@ fn test_solver_path() -> PathBuf {
     PathBuf::from(env!("CARGO_BIN_EXE_test_solver"))
 }
 
-fn default_opts() -> CommandRunArgs {
-    let mut arguments = CommandRunArgs::default();
-    arguments.soft_timeout = Duration::from_secs(1);
-    arguments.grace_period = Duration::from_secs(1);
-    arguments.solver = test_solver_path();
-    arguments
-}
-
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone, Copy)]
 enum ExpectedResult {
     SuccessRequired,
     FailRequired,
 }
 
-async fn test_solutions(arguments: CommandRunArgs, key: &str, expected: ExpectedResult) {
+async fn test_solutions(key: &str, expected: ExpectedResult) {
     let instances = test_cases_glob(key);
 
     let tempdir = TempDir::new(key).unwrap();
     let run_dir = Arc::new(RunDirectory::new_within(tempdir.path()).unwrap());
 
-    let arguments = Arc::new(arguments);
-
     let mut handles = Vec::new();
     for instance_path in instances {
         let run_dir = run_dir.clone();
-        let arguments = arguments.clone();
         handles.push(tokio::spawn(async move {
-            let mut job = JobProcessor::new(run_dir, arguments, instance_path.clone());
-            let result = job.run().await;
-            assert!(result.is_ok());
+            let job = JobProcessorBuilder::default()
+                .soft_timeout(Duration::from_secs(1))
+                .grace_period(Duration::from_secs(1))
+                .solver(test_solver_path())
+                .run_directory(run_dir)
+                .instance_path(instance_path.clone())
+                .build()
+                .unwrap();
+
+            let (job_result, _solution_infos) = job.run().await;
             assert_eq!(job.progress(), JobProgress::Finished);
 
-            let job_result = job.result().unwrap();
             assert_eq!(
                 job_result.is_valid(),
                 expected == ExpectedResult::SuccessRequired,
@@ -65,20 +59,10 @@ async fn test_solutions(arguments: CommandRunArgs, key: &str, expected: Expected
 
 #[tokio::test]
 async fn test_valid_solutions() {
-    test_solutions(
-        default_opts(),
-        "valid_solutions",
-        ExpectedResult::SuccessRequired,
-    )
-    .await
+    test_solutions("valid_solutions", ExpectedResult::SuccessRequired).await
 }
 
 #[tokio::test]
 async fn test_invalid_solutions() {
-    test_solutions(
-        default_opts(),
-        "invalid_solutions",
-        ExpectedResult::FailRequired,
-    )
-    .await
+    test_solutions("invalid_solutions", ExpectedResult::FailRequired).await
 }

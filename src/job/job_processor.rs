@@ -1,11 +1,12 @@
-// TODO: Refactor: JobProcessor should NOT depend on CommandRunArgs !
-
+use derive_builder::Builder;
+use std::sync::atomic::{AtomicUsize, Ordering};
+use std::time::Duration;
 use thiserror::Error;
 use tokio::task::JoinError;
-use tracing::error;
+use tracing::{debug, error};
 
 use crate::{
-    commands::arguments::{self, CommandRunArgs},
+    commands::arguments,
     job::{
         check_and_extract::{CheckAndExtract, CheckerError},
         solver_executor::{self, ChildExitStatus, ExecutorError, SolverExecutorBuilder},
@@ -32,12 +33,51 @@ pub enum JobError {
     JoinError(#[from] JoinError),
 }
 
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+#[derive(Clone, Copy, PartialEq, Eq, Debug, Default)]
 pub enum JobProgress {
-    Starting,
-    Running,
-    Checking,
-    Finished,
+    #[default]
+    Starting = 0,
+    Running = 1,
+    Checking = 2,
+    Finished = 3,
+}
+
+struct AtomicJobProgress {
+    value: AtomicUsize,
+}
+
+impl Default for AtomicJobProgress {
+    fn default() -> Self {
+        Self::new(Default::default())
+    }
+}
+
+impl Clone for AtomicJobProgress {
+    fn clone(&self) -> Self {
+        Self::new(self.load())
+    }
+}
+
+impl AtomicJobProgress {
+    fn new(state: JobProgress) -> Self {
+        Self {
+            value: AtomicUsize::new(state as usize),
+        }
+    }
+
+    fn load(&self) -> JobProgress {
+        match self.value.load(Ordering::Acquire) {
+            x if x == JobProgress::Starting as usize => JobProgress::Starting,
+            x if x == JobProgress::Running as usize => JobProgress::Running,
+            x if x == JobProgress::Checking as usize => JobProgress::Checking,
+            x if x == JobProgress::Finished as usize => JobProgress::Finished,
+            _ => unreachable!(),
+        }
+    }
+
+    fn store(&self, progress: JobProgress) {
+        self.value.store(progress as usize, Ordering::Release);
+    }
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
@@ -46,8 +86,8 @@ pub enum JobResult {
     Infeasible,
     InvalidInstance,
     SyntaxError,
-    SolverError,
     SystemError,
+    SolverError,
     Timeout,
 }
 
@@ -57,95 +97,88 @@ impl JobResult {
     }
 }
 
+pub type SolutionInfos = Vec<(String, serde_json::Value)>;
+
+#[derive(Builder)]
 pub struct JobProcessor {
     run_directory: Arc<RunDirectory>,
-    arguments: Arc<CommandRunArgs>,
     instance_path: PathBuf,
 
-    progress: JobProgress,
-    result: Option<JobResult>,
+    solver: PathBuf,
+    soft_timeout: Duration,
+    grace_period: Duration,
 
-    solver_exit_status: Option<ChildExitStatus>,
-    solution_infos: Vec<(String, serde_json::Value)>,
+    #[builder(default)]
+    solver_args: Vec<String>,
+
+    #[builder(default, setter(skip))]
+    progress: AtomicJobProgress,
 }
 
 impl JobProcessor {
-    pub fn new(
-        run_directory: Arc<RunDirectory>,
-        arguments: Arc<CommandRunArgs>,
-        instance_path: PathBuf,
-    ) -> Self {
-        Self {
-            run_directory,
-            arguments,
-            instance_path,
-
-            progress: JobProgress::Starting,
-            result: None,
-            solver_exit_status: None,
-            solution_infos: Vec::new(),
-        }
-    }
-
     pub fn progress(&self) -> JobProgress {
-        self.progress
+        self.progress.load()
     }
 
-    pub fn result(&self) -> Option<JobResult> {
-        self.result
-    }
-
-    pub async fn run(&mut self) -> Result<(), JobError> {
+    pub async fn run(&self) -> (JobResult, Option<SolutionInfos>) {
         let result = self.run_internal().await;
-        self.progress = JobProgress::Finished;
+        self.progress.store(JobProgress::Finished);
 
-        if result.is_err() {
-            assert!(self.result.is_none());
-            self.result = Some(JobResult::SystemError);
+        match result {
+            Ok(r) => r,
+            Err(e) => {
+                error!("{e}");
+                (JobResult::SystemError, None)
+            }
         }
-
-        result
     }
 
-    pub async fn run_internal(&mut self) -> Result<(), JobError> {
+    pub async fn run_internal(&self) -> Result<(JobResult, Option<SolutionInfos>), JobError> {
         let work_dir = self
             .run_directory
             .create_instance_dir_for_path(&self.instance_path)?;
         let solution_path = work_dir.join(solver_executor::PATH_STDOUT);
 
+        debug!("JobProcessor {:?} started", self.instance_path);
+        // TODO: we might want to avoid the clone of path and arguments ...
         let mut executor = SolverExecutorBuilder::default()
             .instance_path(self.instance_path.clone())
             .working_dir(work_dir)
-            .solver_path(self.arguments.solver.clone())
-            .args(self.arguments.solver_args.clone())
+            .solver_path(self.solver.clone())
+            .args(self.solver_args.clone())
             .env(self.env_vars())
-            .timeout(self.arguments.soft_timeout)
-            .grace(self.arguments.grace_period)
+            .timeout(self.soft_timeout)
+            .grace(self.grace_period)
             .build()
             .expect("Executor Builder failed"); // if this fails it is a programming error and will always fail 
 
-        self.progress = JobProgress::Running;
+        self.progress.store(JobProgress::Running);
         let exit_status = executor.run().await?;
-        self.solver_exit_status = Some(exit_status);
+        debug!(
+            "JobProcessor {:?} child finished with exit status {:?}",
+            self.instance_path, exit_status
+        );
 
         if !exit_status.is_success() {
-            self.result = Some(match exit_status {
-                ChildExitStatus::BeforeTimeout(_) | ChildExitStatus::WithinGrace(_) => {
-                    JobResult::SolverError
-                }
-                ChildExitStatus::Timeout => JobResult::Timeout,
-            });
-
-            return Ok(());
+            return Ok((
+                match exit_status {
+                    ChildExitStatus::BeforeTimeout(_) | ChildExitStatus::WithinGrace(_) => {
+                        JobResult::SolverError
+                    }
+                    ChildExitStatus::Timeout => JobResult::Timeout,
+                },
+                None,
+            ));
         }
 
-        self.check_solution(solution_path).await?;
-
-        Ok(())
+        self.check_solution(solution_path).await
     }
 
-    async fn check_solution(&mut self, solution_path: PathBuf) -> Result<(), JobError> {
-        self.progress = JobProgress::Checking;
+    async fn check_solution(
+        &self,
+        solution_path: PathBuf,
+    ) -> Result<(JobResult, Option<SolutionInfos>), JobError> {
+        self.progress.store(JobProgress::Checking);
         let instance_path = self.instance_path.clone();
 
         // pace26checker is implemented in a blocking fashion and may also be CPU-bound; so let's move it into an own thread
@@ -160,15 +193,16 @@ impl JobProcessor {
         .await?;
 
         // update solution and map possible error source to job results
-        self.solution_infos = solution_infos;
-        self.result = Some(match result {
-            Ok(size) => JobResult::Valid { size },
-            Err(e) => {
-                error!("{:?} {:?}", self.instance_path, e);
-                map_checker_error_to_job_result(e)
-            }
-        });
-        Ok(())
+        Ok((
+            match result {
+                Ok(size) => JobResult::Valid { size },
+                Err(e) => {
+                    error!("{:?} {:?}", self.instance_path, e);
+                    map_checker_error_to_job_result(e)
+                }
+            },
+            Some(solution_infos),
+        ))
     }
 
     fn env_vars(&self) -> Vec<(String, String)> {
@@ -179,11 +213,11 @@ impl JobProcessor {
             ),
             (
                 arguments::ENV_SOFT_TIMEOUT.to_string(),
-                format!("{}", self.arguments.soft_timeout.as_secs_f64()),
+                format!("{}", self.soft_timeout.as_secs_f64()),
             ),
             (
                 arguments::ENV_GRACE_PERIOD.to_string(),
-                format!("{}", self.arguments.grace_period.as_secs_f64()),
+                format!("{}", self.grace_period.as_secs_f64()),
             ),
         ]
     }
