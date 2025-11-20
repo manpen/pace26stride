@@ -33,7 +33,7 @@ pub struct CommandCheckArgs {
     pub paranoid: bool,
 }
 
-#[derive(StructOpt, Debug, Default)]
+#[derive(StructOpt, Debug, Default, Clone)]
 pub struct CommandRunArgs {
     #[structopt(short, long, help = "List of instance files", required = true)]
     pub instances: Vec<PathBuf>,

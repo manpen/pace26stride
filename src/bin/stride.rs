@@ -16,10 +16,10 @@ enum MainError {
     CommandRunError(#[from] CommandRunError),
 }
 
-fn dispatch_command(args: &Arguments) -> Result<(), MainError> {
+async fn dispatch_command(args: &Arguments) -> Result<(), MainError> {
     match args {
         Arguments::Check(args) => command_check(args)?,
-        Arguments::Run(args) => command_run(args)?,
+        Arguments::Run(args) => command_run(args).await?,
     }
     Ok(())
 }
@@ -28,7 +28,7 @@ fn dispatch_command(args: &Arguments) -> Result<(), MainError> {
 async fn main() {
     let args = parse_prog_arguments();
 
-    let res = dispatch_command(&args);
+    let res = dispatch_command(&args).await;
     if let Err(e) = res {
         error!("{e}");
         std::process::exit(1)
