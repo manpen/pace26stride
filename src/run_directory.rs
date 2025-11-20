@@ -44,7 +44,7 @@ impl RunDirectory {
         // now, create or update the "latest" symlink to point to the new log directory
         let latest_path = parent.join(LOG_LATEST_LINK);
         loop {
-            match std::os::unix::fs::symlink(&path, &latest_path) {
+            match std::os::unix::fs::symlink(path.file_name().unwrap(), &latest_path) {
                 Ok(()) => break,
 
                 Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => {}
