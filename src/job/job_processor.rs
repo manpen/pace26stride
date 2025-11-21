@@ -1,4 +1,5 @@
 use derive_builder::Builder;
+use std::path::Path;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::time::Duration;
 use thiserror::Error;
@@ -116,6 +117,18 @@ pub struct JobProcessor {
 }
 
 impl JobProcessor {
+    pub fn instance_path(&self) -> &Path {
+        &self.instance_path
+    }
+
+    pub fn soft_timeout(&self) -> Duration {
+        self.soft_timeout
+    }
+
+    pub fn grace_period(&self) -> Duration {
+        self.grace_period
+    }
+
     pub fn progress(&self) -> JobProgress {
         self.progress.load()
     }

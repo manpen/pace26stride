@@ -1,14 +1,22 @@
-use std::{fs::File, sync::Arc};
-
 use crate::{
-    commands::{arguments::CommandRunArgs, run::instances::*},
+    commands::{
+        arguments::CommandRunArgs,
+        run::{
+            display::{JobProgressBar, ProgressDisplay},
+            instances::*,
+        },
+    },
     job::job_processor::{JobProcessor, JobProcessorBuilder, JobResult, SolutionInfos},
     run_directory::*,
 };
+use std::{fs::File, sync::Arc};
 use thiserror::Error;
-use tracing::info;
+use tracing::{debug, info};
 
-use tokio::time::{Duration, sleep};
+use tokio::{
+    task::block_in_place,
+    time::{Duration, sleep},
+};
 
 #[derive(Error, Debug)]
 pub enum CommandRunError {
@@ -19,30 +27,49 @@ pub enum CommandRunError {
     Io(#[from] std::io::Error),
 }
 
+type TaskResult = (JobResult, Option<SolutionInfos>);
 struct RunningTask {
     processor: Arc<JobProcessor>,
-    task: tokio::task::JoinHandle<(JobResult, Option<SolutionInfos>)>,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum TaskProgress {
-    Running,
-    Finished,
+    job_progress_bar: JobProgressBar,
+    task: tokio::task::JoinHandle<TaskResult>,
 }
 
 impl RunningTask {
     fn new(processor: Arc<JobProcessor>) -> Self {
         let moved_processor = processor.clone();
         let task = tokio::spawn(async move { moved_processor.run().await });
-        Self { processor, task }
+        let job_progress_bar = JobProgressBar::new(
+            String::from(
+                processor
+                    .instance_path()
+                    .file_stem()
+                    .and_then(|s| s.to_str())
+                    .unwrap_or("unnamed"),
+            ),
+            processor.soft_timeout(),
+            processor.grace_period(),
+        );
+
+        Self {
+            processor,
+            job_progress_bar,
+            task,
+        }
     }
 
-    fn update_progress(&self) -> TaskProgress {
-        if self.task.is_finished() {
-            TaskProgress::Finished
-        } else {
-            TaskProgress::Running
-        }
+    fn is_finished(&mut self, display: &ProgressDisplay, now: tokio::time::Instant) -> bool {
+        let progress = self.processor.progress();
+        self.job_progress_bar
+            .update_progress_bar(display, progress, now);
+
+        self.task.is_finished()
+    }
+
+    fn finish(self, display: &mut ProgressDisplay) -> TaskResult {
+        debug!("{:?} block_on task", self.processor.instance_path());
+        let result = block_in_place(|| futures::executor::block_on(self.task)).unwrap();
+        self.job_progress_bar.finish(display, result.0);
+        result
     }
 }
 
@@ -64,6 +91,8 @@ pub async fn command_run(args: &CommandRunArgs) -> Result<(), CommandRunError> {
         info!("Found {} instances", instances.len());
         instances.into_iter()
     };
+
+    let mut display = ProgressDisplay::new(instances.len());
 
     let parallel_jobs = args.parallel_jobs.unwrap() as usize; // the argument parser ensures this value is always set
     let mut running_tasks = Vec::with_capacity(parallel_jobs);
@@ -90,10 +119,26 @@ pub async fn command_run(args: &CommandRunArgs) -> Result<(), CommandRunError> {
             }
         }
 
-        running_tasks.retain(|task| task.update_progress() == TaskProgress::Running);
+        let now = tokio::time::Instant::now();
+
+        {
+            let mut idx = 0;
+            while idx < running_tasks.len() {
+                if running_tasks[idx].is_finished(&display, now) {
+                    // task finished
+                    let _ = running_tasks.swap_remove(idx).finish(&mut display);
+                } else {
+                    idx += 1;
+                }
+            }
+        }
+
+        display.tick(running_tasks.len());
 
         sleep(Duration::from_millis(1)).await
     }
+
+    display.final_message();
 
     Ok(())
 }
