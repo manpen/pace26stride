@@ -14,6 +14,41 @@ fn command() -> Command {
 }
 
 #[test]
+fn dot_solutions() {
+    let testcases_path = testcase_dir().join("valid_solutions").join("*.in");
+    let instance_path = glob::glob(testcases_path.as_os_str().to_str().unwrap()).unwrap();
+
+    let mut num_success = 0;
+    for (i, input_path) in instance_path.enumerate() {
+        let input_path = input_path.unwrap();
+        let mut output_path = input_path.clone();
+        assert!(output_path.set_extension("out"));
+        assert!(output_path.exists());
+
+        let mut args = vec![
+            String::from("check"),
+            String::from("-d"),
+            input_path.as_os_str().to_str().unwrap().into(),
+        ];
+
+        if i % 2 == 1 {
+            args.push(output_path.as_os_str().to_str().unwrap().into());
+        }
+
+        let output = command().args(args).output().expect("failed to run binary");
+
+        assert!(output.status.success());
+
+        let stdout = String::from_utf8(output.stdout).unwrap();
+        assert!(stdout.contains("digraph"));
+
+        num_success += 1;
+    }
+
+    assert!(num_success > 10);
+}
+
+#[test]
 fn valid_solutions() {
     let testcases_path = testcase_dir().join("valid_solutions").join("*.in");
     let instance_path = glob::glob(testcases_path.as_os_str().to_str().unwrap()).unwrap();

@@ -20,17 +20,20 @@ pub enum Arguments {
 
 #[derive(StructOpt, Debug, Default)]
 pub struct CommandCheckArgs {
-    #[structopt()]
+    #[structopt(help = "Path to instance file")]
     pub instance: PathBuf,
 
-    #[structopt()]
+    #[structopt(help = "Path to solution file; if omitted, only instance is checked")]
     pub solution: Option<PathBuf>,
 
-    #[structopt(short, long)]
+    #[structopt(short, long, help = "Produce as little output as possible")]
     pub quiet: bool,
 
-    #[structopt(short, long)]
+    #[structopt(short, long, help = "Stricter linting and all warnings become errors")]
     pub paranoid: bool,
+
+    #[structopt(short = "d", help = "If input is valid, export it as GraphViz dot")]
+    pub export_dot: bool,
 }
 
 #[derive(StructOpt, Debug, Default, Clone)]
