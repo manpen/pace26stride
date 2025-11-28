@@ -18,6 +18,9 @@ pub struct RunDirectory {
 const LOG_PARENT_DIR: &str = "stride-logs";
 const LOG_LATEST_LINK: &str = "latest";
 
+const RUN_DIR_FORMAT_SHORT: &str = "run_%y%m%d_%H%M%S"; // used only for first attempt
+const RUN_DIR_FORMAT_LONG: &str = "run_%y%m%d_%H%M%S%.6f";
+
 impl RunDirectory {
     pub fn new() -> Result<Self, std::io::Error> {
         Self::new_within(Path::new(LOG_PARENT_DIR))
@@ -27,11 +30,11 @@ impl RunDirectory {
         std::fs::create_dir_all(parent)?;
 
         // we create a uniquely timestamped run directory
+        let mut format = RUN_DIR_FORMAT_SHORT;
         let path = loop {
-            let prefix: String = chrono::Local::now()
-                .format("run_%y%m%d_%H%M%S%.6f")
-                .to_string();
+            let prefix: String = chrono::Local::now().format(format).to_string();
             let path = parent.join(prefix);
+            format = RUN_DIR_FORMAT_LONG;
 
             // try to create the timestamped directory; if it already exists, retry
             match std::fs::create_dir(&path) {
@@ -127,7 +130,8 @@ mod tests {
             std::fs::write(log_dir.path().join("test"), "test").unwrap();
 
             assert!(parent.join(LOG_LATEST_LINK).exists());
-            assert!(parent.join(LOG_LATEST_LINK).read_link().unwrap() == log_dir.path());
+            let link_target = parent.join(LOG_LATEST_LINK).read_link().unwrap();
+            assert_eq!(link_target, log_dir.path().file_name().unwrap());
         }
 
         // second run
@@ -138,7 +142,9 @@ mod tests {
             std::fs::write(log_dir.path().join("test"), "test").unwrap();
 
             assert!(parent.join(LOG_LATEST_LINK).exists());
-            assert!(parent.join(LOG_LATEST_LINK).read_link().unwrap() == log_dir.path());
+            let link_target = parent.join(LOG_LATEST_LINK).read_link().unwrap();
+
+            assert_eq!(link_target, log_dir.path().file_name().unwrap());
         }
     }
 
