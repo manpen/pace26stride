@@ -41,6 +41,11 @@ fn main() {
     if let Ok(solution_path) =
         std::env::var("STRIDE_INSTANCE_PATH").map(|p| PathBuf::from(p).with_extension("out"))
     {
+        println!(
+            "#s path \"{}\"",
+            solution_path.as_os_str().to_str().unwrap_or_default()
+        );
+
         let contents = std::fs::read_to_string(&solution_path)
             .unwrap_or_else(|_| panic!("Failed to read solution file {:?}", solution_path));
         print!("{}", contents);

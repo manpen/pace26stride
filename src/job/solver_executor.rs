@@ -65,8 +65,16 @@ impl SolverExecutor {
 
     fn spawn_child(&mut self) -> Result<Child, ExecutorError> {
         let stdin = File::open(&self.instance_path)?;
-        let stdout = File::create(self.working_dir.join(PATH_STDOUT))?;
+        let mut stdout = File::create(self.working_dir.join(PATH_STDOUT))?;
         let stderr = File::create(self.working_dir.join(PATH_STDERR))?;
+
+        if let Some(solver) = self.solver_path.as_os_str().to_str() {
+            let _ = writeln!(stdout, "# cmd:  {} {}", solver, self.args.join(" "));
+        }
+
+        if let Some(instance) = self.instance_path.as_os_str().to_str() {
+            let _ = writeln!(stdout, "# inst: {}", instance);
+        }
 
         trace!(
             "Spawn solver {:?} with args {:?}",

@@ -98,6 +98,22 @@ impl JobResult {
     }
 }
 
+// ToString is more appropriate as we only include partial information
+#[allow(clippy::to_string_trait_impl)]
+impl ToString for JobResult {
+    fn to_string(&self) -> String {
+        String::from(match self {
+            JobResult::Valid { .. } => "Valid",
+            JobResult::Infeasible => "Infeasible",
+            JobResult::InvalidInstance => "InvalidInstance",
+            JobResult::SyntaxError => "SyntaxError",
+            JobResult::SystemError => "SystemError",
+            JobResult::SolverError => "SolverError",
+            JobResult::Timeout => "Timeout",
+        })
+    }
+}
+
 pub type SolutionInfos = Vec<(String, serde_json::Value)>;
 
 #[derive(Builder)]

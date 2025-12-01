@@ -10,6 +10,7 @@ use tracing::{debug, warn};
 pub struct Instance {
     name: String,
     path: PathBuf,
+    stride_hash: Option<String>,
 }
 
 impl Hash for Instance {
@@ -31,6 +32,10 @@ impl Instance {
 
     pub fn path(&self) -> &Path {
         &self.path
+    }
+
+    pub fn stride_hash(&self) -> Option<&str> {
+        self.stride_hash.as_deref()
     }
 }
 
@@ -136,6 +141,7 @@ impl Instances {
         let newly_inserted = self.instances.insert(Instance {
             path,
             name: name.clone(),
+            stride_hash: None, // TODO: Compute stride_hash!
         });
 
         if !newly_inserted {

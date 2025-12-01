@@ -4,6 +4,7 @@ use crate::{
         run::{
             display::{JobProgressBar, ProgressDisplay},
             instances::*,
+            summary_writer::SummaryWriter,
         },
     },
     job::job_processor::{JobProcessor, JobProcessorBuilder, JobResult, SolutionInfos},
@@ -11,7 +12,7 @@ use crate::{
 };
 use std::{fs::File, sync::Arc};
 use thiserror::Error;
-use tracing::{debug, info};
+use tracing::{debug, error, info};
 
 use tokio::{
     task::block_in_place,
@@ -29,13 +30,14 @@ pub enum CommandRunError {
 
 type TaskResult = (JobResult, Option<SolutionInfos>);
 struct RunningTask {
+    instance: Instance,
     processor: Arc<JobProcessor>,
     job_progress_bar: JobProgressBar,
     task: tokio::task::JoinHandle<TaskResult>,
 }
 
 impl RunningTask {
-    fn new(processor: Arc<JobProcessor>) -> Self {
+    fn new(instance: Instance, processor: Arc<JobProcessor>) -> Self {
         let moved_processor = processor.clone();
         let task = tokio::spawn(async move { moved_processor.run().await });
         let job_progress_bar = JobProgressBar::new(
@@ -51,6 +53,7 @@ impl RunningTask {
         );
 
         Self {
+            instance,
             processor,
             job_progress_bar,
             task,
@@ -65,11 +68,11 @@ impl RunningTask {
         self.task.is_finished()
     }
 
-    fn finish(self, display: &mut ProgressDisplay) -> TaskResult {
+    fn finish(self, display: &mut ProgressDisplay) -> (Instance, TaskResult) {
         debug!("{:?} block_on task", self.processor.instance_path());
         let result = block_in_place(|| futures::executor::block_on(self.task)).unwrap();
         self.job_progress_bar.finish(display, result.0);
-        result
+        (self.instance, result)
     }
 }
 
@@ -93,6 +96,7 @@ pub async fn command_run(args: &CommandRunArgs) -> Result<(), CommandRunError> {
     };
 
     let mut display = ProgressDisplay::new(instances.len());
+    let mut summary_writer = SummaryWriter::new(&arc_run_dir.path().join("summary.json"))?;
 
     let parallel_jobs = args.parallel_jobs.unwrap() as usize; // the argument parser ensures this value is always set
     let mut running_tasks = Vec::with_capacity(parallel_jobs);
@@ -112,7 +116,7 @@ pub async fn command_run(args: &CommandRunArgs) -> Result<(), CommandRunError> {
                         .unwrap(),
                 );
 
-                running_tasks.push(RunningTask::new(processor));
+                running_tasks.push(RunningTask::new(instance, processor));
             } else if running_tasks.is_empty() {
                 // no running tasks available and no new tasks to spin up
                 break;
@@ -126,7 +130,12 @@ pub async fn command_run(args: &CommandRunArgs) -> Result<(), CommandRunError> {
             while idx < running_tasks.len() {
                 if running_tasks[idx].is_finished(&display, now) {
                     // task finished
-                    let _ = running_tasks.swap_remove(idx).finish(&mut display);
+                    let (instance, (job_result, opt_info)) =
+                        running_tasks.swap_remove(idx).finish(&mut display);
+
+                    if let Err(e) = summary_writer.add_entry(&instance, job_result, opt_info) {
+                        error!("SummaryWriter error: {e:?}");
+                    }
                 } else {
                     idx += 1;
                 }
