@@ -1,13 +1,12 @@
-use std::{hint::black_box, path::PathBuf};
-
+use clap::Parser;
 /// This binary is used to test the runner.
 ///  Standard behavior is to print out the contents of the file "{X}.out" where X is the value of the environment variable "STRIDE_INSTANCE_PATH".
 ///  It also supports additional options to wait, ignore SIGTERM, and set exit code.
-use structopt::StructOpt;
+use std::{hint::black_box, path::PathBuf};
 
-#[derive(StructOpt)]
+#[derive(Parser)]
 struct Opts {
-    #[structopt(
+    #[arg(
         short,
         long,
         help = "Number of seconds to wait before output",
@@ -15,18 +14,18 @@ struct Opts {
     )]
     wait_seconds: f64,
 
-    #[structopt(short = "m", long, help = "Allocate extra memory (in bytes)")]
+    #[arg(short = 'm', long, help = "Allocate extra memory (in bytes)")]
     extra_alloc: Option<usize>,
 
-    #[structopt(short, long, help = "Ignore SIGTERM signal")]
+    #[arg(short, long, help = "Ignore SIGTERM signal")]
     ignore_sigterm: bool,
 
-    #[structopt(short = "e", long, help = "Exit code to return", default_value = "0")]
+    #[arg(short = 'e', long, help = "Exit code to return", default_value = "0")]
     exit_code: i32,
 }
 
 fn main() {
-    let opts = Opts::from_args();
+    let opts = Opts::parse();
 
     if opts.ignore_sigterm {
         let _ = ctrlc::set_handler(|| {

@@ -1,6 +1,5 @@
-use std::{num::ParseFloatError, path::PathBuf, time::Duration};
-
-use structopt::StructOpt;
+use clap::Parser;
+use std::{path::PathBuf, time::Duration};
 
 pub const ENV_SOLVER: &str = "STRIDE_SOLVER";
 pub const ENV_SOFT_TIMEOUT: &str = "STRIDE_TIMEOUT";
@@ -9,86 +8,98 @@ pub const ENV_PARALLEL_JOBS: &str = "STRIDE_PARALLEL";
 pub const ENV_REQUIRE_OPTIMAL: &str = "STRIDE_OPTIMAL";
 pub const ENV_KEEP_LOGS: &str = "STRIDE_KEEP";
 
-#[derive(StructOpt, Debug)]
+#[derive(Parser, Debug)]
 pub enum Arguments {
-    #[structopt(about = "Check a solution file")]
+    #[command(about = "Check a solution file")]
     Check(CommandCheckArgs),
 
-    #[structopt(about = "Run solver and postprocess solution")]
+    #[command(about = "Run solver and postprocess solution")]
     Run(CommandRunArgs),
+
+    #[command(hide = true)]
+    Instrument(CommandInstrumentArgs),
 }
 
-#[derive(StructOpt, Debug, Default)]
+#[derive(Parser, Debug, Default)]
+pub struct CommandInstrumentArgs {
+    #[arg(short, long, help = "Solver program to execute")]
+    pub solver: PathBuf,
+
+    #[arg(last = true, help = "Arguments passed to solver")]
+    pub solver_args: Vec<String>,
+}
+
+#[derive(Parser, Debug, Default)]
 pub struct CommandCheckArgs {
-    #[structopt(help = "Path to instance file")]
+    #[arg(help = "Path to instance file")]
     pub instance: PathBuf,
 
-    #[structopt(help = "Path to solution file; if omitted, only instance is checked")]
+    #[arg(help = "Path to solution file; if omitted, only instance is checked")]
     pub solution: Option<PathBuf>,
 
-    #[structopt(short, long, help = "Produce as little output as possible")]
+    #[arg(short, long, help = "Produce as little output as possible")]
     pub quiet: bool,
 
-    #[structopt(short, long, help = "Stricter linting and all warnings become errors")]
+    #[arg(short, long, help = "Stricter linting and all warnings become errors")]
     pub paranoid: bool,
 
-    #[structopt(short = "d", help = "If input is valid, export it as GraphViz dot")]
+    #[arg(short = 'd', help = "If input is valid, export it as GraphViz dot")]
     pub export_dot: bool,
 }
 
-#[derive(StructOpt, Debug, Default, Clone)]
+#[derive(Parser, Debug, Default, Clone)]
 pub struct CommandRunArgs {
-    #[structopt(short, long, help = "List of instance files", required = true)]
+    #[arg(short, long, help = "List of instance files", required = true)]
     pub instances: Vec<PathBuf>,
 
-    #[structopt(short, long, env = ENV_SOLVER, help = "Solver program to execute")]
+    #[arg(short, long, env = ENV_SOLVER, help = "Solver program to execute")]
     pub solver: PathBuf,
 
-    #[structopt(short="t", long="timeout", env = ENV_SOFT_TIMEOUT, parse(try_from_str = parse_duration), help = "Solver time budget in seconds (then SIGTERM)", default_value="30")]
+    #[arg(short='t', long="timeout", env = ENV_SOFT_TIMEOUT, value_parser = parse_duration, help = "Solver time budget in seconds (then SIGTERM)", default_value="30")]
     pub soft_timeout: Duration,
 
-    #[structopt(short="g", long="grace", env = ENV_GRACE_PERIOD, parse(try_from_str = parse_duration), help = "Seconds between SIGTERM and SIGKILL", default_value="5")]
+    #[arg(short='g', long="grace", env = ENV_GRACE_PERIOD, value_parser = parse_duration, help = "Seconds between SIGTERM and SIGKILL", default_value="5")]
     pub grace_period: Duration,
 
-    #[structopt(
-        short = "p",
+    #[arg(
+        short = 'p',
         long = "parallel",
         env = ENV_PARALLEL_JOBS,
         help = "Number of solvers to run in parallel; default: number of physical cores"
     )]
     pub parallel_jobs: Option<u64>,
 
-    #[structopt(
-        short = "o",
+    #[arg(
+        short = 'o',
         long = "optimal",
         env = ENV_REQUIRE_OPTIMAL,
         help = "Treat suboptimal solutions as error"
     )]
     pub require_optimal: bool,
 
-    #[structopt(
-        short = "k",
+    #[arg(
+        short = 'k',
         long = "keep-logs",
         env = ENV_KEEP_LOGS,
         help = "Keep logs of successful runs"
     )]
     pub keep_successful_logs: bool,
 
-    #[structopt(last = true, help = "Arguments passed to solver")]
+    #[arg(last = true, help = "Arguments passed to solver")]
     pub solver_args: Vec<String>,
 }
 
-fn parse_duration(src: &str) -> Result<Duration, ParseFloatError> {
-    let seconds: f64 = src.parse()?;
-    Ok(Duration::from_secs_f64(seconds))
+fn parse_duration(s: &str) -> Result<Duration, String> {
+    s.parse::<u64>()
+        .map(Duration::from_secs)
+        .map_err(|e| format!("Invalid duration: {}", e))
 }
-
 fn default_parallel_jobs() -> u64 {
     num_cpus::get_physical() as u64
 }
 
 pub fn parse_prog_arguments() -> Arguments {
-    let mut opts = Arguments::from_args();
+    let mut opts = Arguments::parse();
 
     if let Arguments::Run(opts) = &mut opts {
         if opts.parallel_jobs.is_none() {

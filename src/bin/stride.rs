@@ -20,6 +20,7 @@ async fn dispatch_command(args: &Arguments) -> Result<(), MainError> {
     match args {
         Arguments::Check(args) => command_check(args)?,
         Arguments::Run(args) => command_run(args).await?,
+        Arguments::Instrument(..) => todo!("Test"),
     }
     Ok(())
 }
