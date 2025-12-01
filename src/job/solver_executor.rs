@@ -1,4 +1,4 @@
-use std::{fs::File, path::PathBuf, process::ExitStatus, time::Duration};
+use std::{fs::File, io::Write, path::PathBuf, process::ExitStatus, time::Duration};
 
 use derive_builder::Builder;
 use thiserror::Error;
@@ -79,6 +79,7 @@ impl SolverExecutor {
             .stdin(stdin)
             .stdout(stdout)
             .stderr(stderr)
+            .kill_on_drop(true)
             .spawn()?;
 
         Ok(child)

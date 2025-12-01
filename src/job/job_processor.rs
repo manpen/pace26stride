@@ -149,7 +149,7 @@ impl JobProcessor {
     pub async fn run_internal(&self) -> Result<(JobResult, Option<SolutionInfos>), JobError> {
         let work_dir = self
             .run_directory
-            .create_instance_dir_for_path(&self.instance_path)?;
+            .create_task_dir_for(&self.instance_path)?;
         let solution_path = work_dir.join(solver_executor::PATH_STDOUT);
 
         debug!("JobProcessor {:?} started", self.instance_path);

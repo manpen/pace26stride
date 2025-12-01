@@ -16,6 +16,7 @@ pub struct RunDirectory {
 }
 
 const LOG_PARENT_DIR: &str = "stride-logs";
+const TASKS_DIR: &str = "tasks";
 const LOG_LATEST_LINK: &str = "latest";
 
 const RUN_DIR_FORMAT_SHORT: &str = "run_%y%m%d_%H%M%S"; // used only for first attempt
@@ -43,6 +44,8 @@ impl RunDirectory {
                 Err(e) => return Err(e),
             }
         };
+
+        std::fs::create_dir(path.join(TASKS_DIR))?;
 
         // now, create or update the "latest" symlink to point to the new log directory
         let latest_path = parent.join(LOG_LATEST_LINK);
@@ -76,6 +79,7 @@ impl RunDirectory {
     /// If the directory already exists, appends a suffix to make it unique.
     pub fn create_instance_dir(
         &self,
+        parent: &Path,
         instance_name: &str,
     ) -> Result<PathBuf, CreateInstanceDirError> {
         if instance_name.is_empty() {
@@ -84,9 +88,9 @@ impl RunDirectory {
 
         for attempt in 0.. {
             let dir = if attempt == 0 {
-                self.path.join(instance_name)
+                parent.join(instance_name)
             } else {
-                self.path.join(format!("{}_{}", instance_name, attempt))
+                parent.join(format!("{}_{}", instance_name, attempt))
             };
 
             match std::fs::create_dir(&dir) {
@@ -99,7 +103,7 @@ impl RunDirectory {
         unreachable!()
     }
 
-    pub fn create_instance_dir_for_path(
+    pub fn create_task_dir_for(
         &self,
         instance_path: &Path,
     ) -> Result<PathBuf, CreateInstanceDirError> {
@@ -107,7 +111,8 @@ impl RunDirectory {
             Some(x) => x.to_string_lossy(),
             None => return Err(CreateInstanceDirError::EmptyInstanceName),
         };
-        self.create_instance_dir(&instance_name)
+        let parent = self.path.join(TASKS_DIR);
+        self.create_instance_dir(&parent, &instance_name)
     }
 }
 
@@ -155,11 +160,15 @@ mod tests {
         let instance_name = "instance1";
 
         // first job
-        let dir1 = log_dir.create_instance_dir(instance_name).unwrap();
+        let dir1 = log_dir
+            .create_instance_dir(log_dir.path(), instance_name)
+            .unwrap();
         assert!(dir1.exists());
 
         // second job with same instance name
-        let dir2 = log_dir.create_instance_dir(instance_name).unwrap();
+        let dir2 = log_dir
+            .create_instance_dir(log_dir.path(), instance_name)
+            .unwrap();
         assert!(dir2.exists());
 
         // make sure the two directories are different
