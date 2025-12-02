@@ -10,13 +10,13 @@ pub const ENV_KEEP_LOGS: &str = "STRIDE_KEEP";
 
 #[derive(Parser, Debug)]
 pub enum Arguments {
-    #[command(about = "Check a solution file")]
+    #[command(alias = "c", visible_alias = "verify", about = "Check a solution file")]
     Check(CommandCheckArgs),
 
-    #[command(about = "Run solver and postprocess solution")]
+    #[command(alias = "r", about = "Run solver and postprocess solution")]
     Run(CommandRunArgs),
 
-    #[command(hide = true)]
+    #[command(alias = "p", hide = true)]
     Profile(CommandProfileArgs),
 }
 

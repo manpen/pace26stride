@@ -133,6 +133,10 @@ pub struct JobProcessor {
 
     #[builder(default)]
     profiler: bool,
+
+    #[builder(default)]
+    /// use own binary if omitted
+    profiler_executable: Option<PathBuf>,
 }
 
 impl JobProcessor {
@@ -184,7 +188,11 @@ impl JobProcessor {
 
         if self.profiler {
             // add indirection
-            let own_path = std::env::current_exe().expect("Failed to get current executable path");
+            let profiler_path = if let Some(x) = &self.profiler_executable {
+                x.clone()
+            } else {
+                std::env::current_exe().expect("Failed to get current executable path")
+            };
 
             let solver_path = self
                 .solver
@@ -193,10 +201,10 @@ impl JobProcessor {
                 .expect("Convert solver path into String")
                 .into();
 
-            let mut args: Vec<String> = vec!["profile".into(), solver_path];
+            let mut args: Vec<String> = vec!["p".into(), solver_path, "--".into()];
             args.extend_from_slice(&self.solver_args);
 
-            executor_builder.solver_path(own_path).args(args);
+            executor_builder.solver_path(profiler_path).args(args);
         } else {
             executor_builder
                 .solver_path(self.solver.clone())

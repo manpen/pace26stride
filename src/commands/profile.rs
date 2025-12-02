@@ -86,7 +86,6 @@ fn report_usage(usage: rusage) {
     #[cfg(target_os = "macos")]
     let maxrss = usage.ru_maxrss;
 
-    println!("getrusage() results: utime/stime in seconds, maxrss in bytes!");
     println!("#s s_utime {utime}");
     println!("#s s_stime {stime}");
     println!("#s s_maxrss {maxrss}");
