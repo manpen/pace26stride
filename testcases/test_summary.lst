@@ -1,0 +1,10 @@
+test_solver_valid/valid_alloc50mb.in
+test_solver_valid/valid_busywait.in
+test_solver_valid/valid.in
+test_solver_valid/valid_longwait.in
+test_solver_valid/valid_wait.in
+test_solver_valid/valid_with_info.in
+test_solver_errors/exit_code1.in
+test_solver_errors/infeasible.in
+test_solver_errors/nocover.in
+test_solver_errors/syntaxerror.in
