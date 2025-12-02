@@ -1,8 +1,4 @@
-use pace26stride::{
-    job::job_processor::{JobProcessorBuilder, JobProgress, JobResult},
-    run_directory::RunDirectory,
-    test_helpers::*,
-};
+use pace26stride::test_helpers::*;
 use serde_json::{Map, Value};
 use std::{
     collections::HashMap,
@@ -12,7 +8,7 @@ use std::{
 };
 use std::{
     path::Path,
-    process::{Command, Output, Stdio},
+    process::{Command, Stdio},
 };
 use tempdir::TempDir;
 
@@ -26,12 +22,6 @@ fn test_stride_path() -> PathBuf {
     PathBuf::from(env!("CARGO_BIN_EXE_stride"))
         .canonicalize()
         .unwrap()
-}
-
-#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone, Copy)]
-enum ExpectedResult {
-    SuccessRequired,
-    FailRequired,
 }
 
 #[test]

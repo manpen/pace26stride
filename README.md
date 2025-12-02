@@ -1,6 +1,6 @@
 ## Run summary
 We produce a machine-readable summary of each run in `stride-logs/{RUN}/summary.json`.
-It's a newline newline delimited JSON file, where each line represents the result of a task (i.e. solver run) formatted in JSON.
+It's a newline delimited JSON file, where each line represents the result of a task (i.e. solver run) formatted in JSON.
 That is, each line has to be parsed individually, the file itself is not a valid JSON expression.
 Common data processing libraries natively support this format, e.g., [Polars](https://docs.pola.rs/api/python/stable/reference/api/polars.read_ndjson.html) and [Pandas](https://pandas.pydata.org/pandas-docs/stable/reference/api/pandas.read_json.html) (by setting `lines=True`).
 

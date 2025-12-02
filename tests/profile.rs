@@ -1,5 +1,5 @@
 use pace26stride::{
-    job::job_processor::{JobProcessorBuilder, JobProgress, JobResult},
+    job::job_processor::{JobProcessorBuilder, JobResult},
     run_directory::RunDirectory,
     test_helpers::*,
 };
@@ -13,12 +13,6 @@ fn test_solver_path() -> PathBuf {
 
 fn test_stride_path() -> PathBuf {
     PathBuf::from(env!("CARGO_BIN_EXE_stride"))
-}
-
-#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone, Copy)]
-enum ExpectedResult {
-    SuccessRequired,
-    FailRequired,
 }
 
 async fn run(instance: PathBuf, profiler: bool) -> (JobResult, HashMap<String, Value>) {
