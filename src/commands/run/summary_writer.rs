@@ -9,11 +9,11 @@ use crate::{
     job::job_processor::{JobResult, SolutionInfos},
 };
 
-const JSON_KEY_INSTANCE_NAME: &str = "name";
-const JSON_KEY_INSTANCE_PATH: &str = "path";
-const JSON_KEY_INSTANCE_HASH: &str = "stride_hash";
-const JSON_KEY_JOB_RESULT: &str = "result";
-const JSON_KEY_SOLUTION_SIZE: &str = "score";
+const JSON_KEY_INSTANCE_NAME: &str = "s_name";
+const JSON_KEY_INSTANCE_PATH: &str = "s_path";
+const JSON_KEY_INSTANCE_HASH: &str = "s_stride_hash";
+const JSON_KEY_JOB_RESULT: &str = "s_result";
+const JSON_KEY_SOLUTION_SIZE: &str = "s_score";
 
 /// Maintains a machine-readable log file where each line corresponds to an completed task in JSON format
 pub struct SummaryWriter {
@@ -56,7 +56,7 @@ impl SummaryWriter {
 
         if let Some(extra) = opt_infos {
             for (key, value) in extra {
-                let old = row.insert(format!("s_{key}"), value);
+                let old = row.insert(key.clone(), value);
                 if old.is_some() {
                     warn!(
                         "Multiple definitions of key {} in instance {:?}. Use latest",

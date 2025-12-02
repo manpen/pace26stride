@@ -1,6 +1,7 @@
 use pace26stride::commands::{
     arguments::{Arguments, parse_prog_arguments},
     check::{CommandCheckError, command_check},
+    profile::{CommandProfileError, command_profile},
     run::{CommandRunError, command_run},
 };
 
@@ -10,17 +11,20 @@ use tracing::error;
 #[derive(Debug, Error)]
 enum MainError {
     #[error(transparent)]
-    CommandCheckError(#[from] CommandCheckError),
+    Check(#[from] CommandCheckError),
 
     #[error(transparent)]
-    CommandRunError(#[from] CommandRunError),
+    Run(#[from] CommandRunError),
+
+    #[error(transparent)]
+    Profile(#[from] CommandProfileError),
 }
 
 async fn dispatch_command(args: &Arguments) -> Result<(), MainError> {
     match args {
         Arguments::Check(args) => command_check(args)?,
         Arguments::Run(args) => command_run(args).await?,
-        Arguments::Instrument(..) => todo!("Test"),
+        Arguments::Profile(args) => command_profile(args).await?,
     }
     Ok(())
 }

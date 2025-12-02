@@ -73,7 +73,7 @@ impl SolverExecutor {
         }
 
         if let Some(instance) = self.instance_path.as_os_str().to_str() {
-            let _ = writeln!(stdout, "# inst: {}", instance);
+            let _ = writeln!(stdout, "# instance: {}", instance);
         }
 
         trace!(

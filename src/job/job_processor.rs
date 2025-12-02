@@ -130,6 +130,9 @@ pub struct JobProcessor {
 
     #[builder(default, setter(skip))]
     progress: AtomicJobProgress,
+
+    #[builder(default)]
+    profiler: bool,
 }
 
 impl JobProcessor {
@@ -170,16 +173,37 @@ impl JobProcessor {
 
         debug!("JobProcessor {:?} started", self.instance_path);
         // TODO: we might want to avoid the clone of path and arguments ...
-        let mut executor = SolverExecutorBuilder::default()
+        let mut executor_builder = SolverExecutorBuilder::default();
+
+        executor_builder
             .instance_path(self.instance_path.clone())
             .working_dir(work_dir)
-            .solver_path(self.solver.clone())
-            .args(self.solver_args.clone())
             .env(self.env_vars())
             .timeout(self.soft_timeout)
-            .grace(self.grace_period)
-            .build()
-            .expect("Executor Builder failed"); // if this fails it is a programming error and will always fail 
+            .grace(self.grace_period);
+
+        if self.profiler {
+            // add indirection
+            let own_path = std::env::current_exe().expect("Failed to get current executable path");
+
+            let solver_path = self
+                .solver
+                .as_os_str()
+                .to_str()
+                .expect("Convert solver path into String")
+                .into();
+
+            let mut args: Vec<String> = vec!["profile".into(), solver_path];
+            args.extend_from_slice(&self.solver_args);
+
+            executor_builder.solver_path(own_path).args(args);
+        } else {
+            executor_builder
+                .solver_path(self.solver.clone())
+                .args(self.solver_args.clone());
+        }
+
+        let mut executor = executor_builder.build().expect("Executor Builder failed"); // if this fails it is a programming error and will always fail 
 
         self.progress.store(JobProgress::Running);
         let exit_status = executor.run().await?;

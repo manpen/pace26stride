@@ -17,15 +17,15 @@ pub enum Arguments {
     Run(CommandRunArgs),
 
     #[command(hide = true)]
-    Instrument(CommandInstrumentArgs),
+    Profile(CommandProfileArgs),
 }
 
 #[derive(Parser, Debug, Default)]
-pub struct CommandInstrumentArgs {
-    #[arg(short, long, help = "Solver program to execute")]
+pub struct CommandProfileArgs {
+    #[arg(help = "Solver program to execute")]
     pub solver: PathBuf,
 
-    #[arg(last = true, help = "Arguments passed to solver")]
+    #[arg(help = "Arguments passed to solver")]
     pub solver_args: Vec<String>,
 }
 
@@ -84,6 +84,12 @@ pub struct CommandRunArgs {
         help = "Keep logs of successful runs"
     )]
     pub keep_successful_logs: bool,
+
+    #[arg(
+        long,
+        help = "Do not record performance metrics; may increase performance"
+    )]
+    pub no_profile: bool,
 
     #[arg(last = true, help = "Arguments passed to solver")]
     pub solver_args: Vec<String>,

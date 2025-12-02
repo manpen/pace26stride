@@ -112,6 +112,7 @@ pub async fn command_run(args: &CommandRunArgs) -> Result<(), CommandRunError> {
                         .soft_timeout(args.soft_timeout)
                         .grace_period(args.grace_period)
                         .instance_path(instance.path().to_path_buf())
+                        .profiler(!args.no_profile)
                         .build()
                         .unwrap(),
                 );
