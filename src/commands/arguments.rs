@@ -1,5 +1,6 @@
 use clap::Parser;
 use std::{path::PathBuf, time::Duration};
+use tracing::error;
 
 pub const ENV_SOLVER: &str = "STRIDE_SOLVER";
 pub const ENV_SOFT_TIMEOUT: &str = "STRIDE_TIMEOUT";
@@ -124,9 +125,10 @@ pub fn parse_prog_arguments() -> Arguments {
             panic!("No instance provided using --instance argument");
         }
 
-        if opts.solver.parent().is_none() && !opts.solver.starts_with("./") {
+        if opts.solver.parent().is_none_or(|x| x == "") && !opts.solver.starts_with("./") {
             // TODO: We could automatically fix this instead of panicking.
             // But it seems to be better to make the user aware of this.
+            error!("Relative solver path without ./");
             panic!(
                 "It seems like you provided a relative solver path without './' prefix. Please add './' to the solver path or provide an absolute path."
             );

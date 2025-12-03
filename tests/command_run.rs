@@ -53,7 +53,7 @@ fn no_env() {
 
 #[test]
 fn no_profiler() {
-    let tempdir = TempDir::new("no_env_test").unwrap();
+    let tempdir = TempDir::new("no_profiler_test").unwrap();
 
     let list_path = test_testcases_dir()
         .join("test_solver_valid/with_info.in")
@@ -73,7 +73,7 @@ fn no_profiler() {
 
 #[test]
 fn multiple_instances() {
-    let tempdir = TempDir::new("no_env_test").unwrap();
+    let tempdir = TempDir::new("multiple_instances_test").unwrap();
 
     let instance_dir = test_testcases_dir()
         .join("test_solver_valid")
@@ -138,6 +138,37 @@ fn summary() {
         assert!(envs.contains_key("STRIDE_TIMEOUT"));
         assert!(envs.contains_key("STRIDE_GRACE"));
     }
+}
+
+#[test]
+fn relative_solver_path() {
+    let tempdir = TempDir::new("relative_solver").unwrap();
+    std::fs::copy(test_solver_path(), tempdir.path().join("solver")).unwrap();
+
+    let list_path = test_testcases_dir()
+        .join("test_solver_valid/with_info.in")
+        .canonicalize()
+        .unwrap();
+
+    let mut command = Command::new(test_stride_path());
+
+    let output = command
+        .current_dir(tempdir.path())
+        .arg("run")
+        .arg("--solver")
+        .arg("solver")
+        .arg("-i")
+        .arg(list_path.to_str().unwrap().to_owned())
+        .output()
+        .unwrap();
+
+    assert!(!output.status.success());
+    let stdout = String::from_utf8_lossy(&output.stdout).to_string();
+    let stderr = String::from_utf8_lossy(&output.stderr).to_string();
+
+    println!("{stdout}, {stderr}");
+
+    assert!(stdout.contains("'./'") || stderr.contains("'./'"));
 }
 
 fn assert_results(lines: &HashMap<String, Map<String, Value>>) {
