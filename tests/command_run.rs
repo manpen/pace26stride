@@ -36,14 +36,14 @@ fn summary() {
     run_stride(tempdir.path(), list_path);
 
     let lines = read_summary(&tempdir.path().join("stride-logs/latest/summary.json"));
-    assert_eq!(lines.len(), 10);
+    assert_eq!(lines.len(), 14);
 
     assert_results(&lines);
 
     // the instance valid_with_info reports #s test_info "there"
     assert_eq!(
         lines
-            .get("valid_with_info")
+            .get("with_info")
             .unwrap()
             .get("test_info")
             .unwrap()
@@ -51,6 +51,20 @@ fn summary() {
             .unwrap(),
         "there"
     );
+
+    {
+        let envs = lines
+            .get("report_envs")
+            .unwrap()
+            .get("envs")
+            .unwrap()
+            .as_object()
+            .unwrap();
+
+        assert!(envs.contains_key("STRIDE_INSTANCE_PATH"));
+        assert!(envs.contains_key("STRIDE_TIMEOUT"));
+        assert!(envs.contains_key("STRIDE_GRACE"));
+    }
 }
 
 fn assert_results(lines: &HashMap<String, Map<String, Value>>) {
@@ -58,14 +72,18 @@ fn assert_results(lines: &HashMap<String, Map<String, Value>>) {
         ("syntaxerror", "SyntaxError"),
         ("exit_code1", "SolverError"),
         ("nocover", "SyntaxError"),
-        ("valid_alloc50mb", "Valid"),
+        ("alloc50mb", "Valid"),
         ("infeasible", "Infeasible"),
+        ("timeout", "Timeout"),
         ("valid", "Valid"),
-        ("valid_busywait", "Valid"),
-        ("valid_longwait", "Valid"),
-        ("valid_wait", "Valid"),
-        ("valid_with_info", "Valid"),
+        ("requires_grace", "Valid"),
+        ("busywait", "Valid"),
+        ("idlewait", "Valid"),
+        ("shortwait", "Valid"),
+        ("with_info", "Valid"),
+        ("report_envs", "Valid"),
     ] {
+        assert!(lines.contains_key(name), "missing: {name}");
         let line = lines.get(name).unwrap();
 
         assert_eq!(
@@ -96,6 +114,10 @@ fn run_stride(tempdir: &Path, list_path: PathBuf) {
         .arg(test_solver_path())
         .arg("-i")
         .arg(list_path)
+        .arg("-t")
+        .arg("2")
+        .arg("-g")
+        .arg("1")
         .arg("--")
         .arg("-f")
         .stdout(Stdio::null())

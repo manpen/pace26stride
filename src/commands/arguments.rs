@@ -86,10 +86,18 @@ pub struct CommandRunArgs {
     pub keep_successful_logs: bool,
 
     #[arg(
+        short = 'P',
         long,
         help = "Do not record performance metrics; may increase performance"
     )]
     pub no_profile: bool,
+
+    #[arg(
+        short = 'E',
+        long,
+        help = "Do not set STRIDE_* enviroment variable for solver"
+    )]
+    pub no_envs: bool,
 
     #[arg(last = true, help = "Arguments passed to solver")]
     pub solver_args: Vec<String>,

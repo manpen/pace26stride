@@ -102,6 +102,7 @@ impl SolverExecutor {
     ) -> Result<ChildExitStatus, ExecutorError> {
         // we get an error if we run into the timeout
         if let Ok(res) = timeout(self.timeout, child.wait()).await {
+            trace!("Child terminated within time: {res:?}");
             return Ok(ChildExitStatus::BeforeTimeout(res?));
         }
 

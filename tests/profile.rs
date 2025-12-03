@@ -57,16 +57,18 @@ async fn valid_with_profiler() {
 }
 
 #[tokio::test]
-async fn profile_time() {
+async fn profile_time_shortwait() {
     // idle wait
-    let (result, infos) = run(PathBuf::from("test_solver_valid/valid_wait.in"), true).await;
+    let (result, infos) = run(PathBuf::from("test_solver_valid/shortwait.in"), true).await;
     assert_eq!(result, JobResult::Valid { size: 2 });
 
     assert!(infos.get("s_wtime").unwrap().as_f64().unwrap() > 0.7);
     assert!(infos.get("s_utime").unwrap().as_f64().unwrap() < 0.5);
+}
 
-    // busy wait
-    let (result, infos) = run(PathBuf::from("test_solver_valid/valid_busywait.in"), true).await;
+#[tokio::test]
+async fn profile_time_busywait() {
+    let (result, infos) = run(PathBuf::from("test_solver_valid/busywait.in"), true).await;
     assert_eq!(result, JobResult::Valid { size: 2 });
 
     assert!(infos.get("s_wtime").unwrap().as_f64().unwrap() > 0.7);
@@ -81,7 +83,7 @@ async fn profile_maxrss() {
     let maxrss_before = infos.get("s_maxrss").unwrap().as_i64().unwrap();
 
     // busy wait
-    let (result, infos) = run(PathBuf::from("test_solver_valid/valid_alloc50mb.in"), true).await;
+    let (result, infos) = run(PathBuf::from("test_solver_valid/alloc50mb.in"), true).await;
     assert_eq!(result, JobResult::Valid { size: 2 });
     let maxrss_after = infos.get("s_maxrss").unwrap().as_i64().unwrap();
 

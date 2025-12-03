@@ -4,6 +4,7 @@ use serde::Deserialize;
 ///  Standard behavior is to print out the contents of the file "{X}.out" where X is the value of the environment variable "STRIDE_INSTANCE_PATH".
 ///  It also supports additional options to wait, ignore SIGTERM, and set exit code.
 use std::{
+    collections::HashMap,
     hint::black_box,
     io::{BufRead, stdin},
     path::PathBuf,
@@ -48,13 +49,17 @@ struct Opts {
     #[serde(default)]
     exit_code: i32,
 
-    #[arg(short, long, help = "Read settings from STDIN")]
+    #[arg(short = 'f', long, help = "Read settings from STDIN")]
     #[serde(default)]
     from_stdin: bool,
 
-    #[arg(short, long, help = "Print string instead of solution")]
+    #[arg(short = 'p', long, help = "Print string instead of solution")]
     #[serde(default)]
     print: Option<String>,
+
+    #[arg(short = 'E', long, help = "Report enviroment variable")]
+    #[serde(default)]
+    report_enviroment: bool,
 }
 
 fn parse_opts_from_stdin() -> Option<Opts> {
@@ -80,12 +85,16 @@ fn main() {
         opts
     };
 
+    if opts.report_enviroment {
+        let vars: HashMap<_, _> = std::env::vars().collect();
+        println!("#s envs {}", serde_json::to_string(&vars).unwrap());
+    }
+
     {
         let signal_received_clone = signal_received.clone();
         ctrlc::set_handler(move || {
             println!("#s s_sigterm true");
             signal_received_clone.store(true, Ordering::Release);
-            // Ignore SIGTERM
         })
         .unwrap();
     }
@@ -93,9 +102,9 @@ fn main() {
     if opts.wait_seconds > 0.0 {
         let start = Instant::now();
         while start.elapsed().as_secs_f64() < opts.wait_seconds {
-            std::thread::sleep(std::time::Duration::from_secs_f64(0.01));
-            if signal_received.load(Ordering::Acquire) {
-                std::process::exit(opts.exit_code);
+            std::thread::sleep(std::time::Duration::from_millis(20));
+            if !opts.ignore_sigterm && signal_received.load(Ordering::Acquire) {
+                break;
             }
         }
     }
@@ -103,9 +112,9 @@ fn main() {
     if opts.busy_wait_seconds > 0.0 {
         let start = Instant::now();
         while start.elapsed().as_secs_f64() < opts.busy_wait_seconds {
-            // wait
-            if signal_received.load(Ordering::Acquire) {
-                std::process::exit(opts.exit_code);
+            // this is a busy wait
+            if !opts.ignore_sigterm && signal_received.load(Ordering::Acquire) {
+                break;
             }
         }
     }

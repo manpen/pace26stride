@@ -51,6 +51,9 @@ pub enum CheckerError {
         instance_line: usize,
         solution_lineno: usize,
     },
+
+    #[error("Solution contains no trees")]
+    EmptySolution,
 }
 
 impl CheckAndExtract {
@@ -112,6 +115,16 @@ impl CheckAndExtract {
         for w in &visitor.warnings {
             warn!("[{:?}] {w:?}", self.instance_path);
         }
+
+        if !visitor.found_tree_line {
+            error!(
+                "[{:?}] {:?}",
+                self.instance_path,
+                CheckerError::EmptySolution
+            );
+            return Err(CheckerError::EmptySolution);
+        }
+
         if !visitor.errors.is_empty() {
             return Err(CheckerError::SolutionInputError(visitor.errors.remove(0)));
         }

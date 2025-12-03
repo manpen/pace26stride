@@ -36,6 +36,7 @@ async fn test_solutions(key: &str, expected: ExpectedResult) {
                 .solver(test_solver_path())
                 .run_directory(run_dir)
                 .instance_path(instance_path.clone())
+                .set_stride_envs(true)
                 .build()
                 .unwrap();
 

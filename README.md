@@ -9,7 +9,15 @@ By default, we record the following columns:
  - `s_instance`: Path to instance file
  - `s_stride_hash`: Hash value if instance is registered in the global stride database
  - `s_solution`: Path to solution file (stdout)
- - `s_result`: Solver result: `Valid`, `Infeasible`, `InvalidInstance` (i.e. instance could not be parsed by stride), `SyntaxError`, `SystemError`, `SolverError`, `Timeout`
+ - `s_result` Possible values: 
+    - `Valid`: the return solution is a feasible agreement forest (size is ignored)
+    - `NoSolution`: the solution did not contain a single tree
+    - `Infeasible`: the solution contained at least one tree
+    - `InvalidInstance`: instance could not be parsed by stride
+    - `SyntaxError`: at least one line could not be parsed; did you write a log message to stdout instead of stderr?
+    - `SystemError`: e.g., solver or instance not found
+    - `SolverError`: e.g., solver terminated with non-zero exit code
+    - `Timeout`: a `SIGKILL` was sent
  - `s_score`: If `s_result` indicates a valid solution, report the number of tree in the MAF.
  - [Profiling](#profiling) related columns
 
@@ -34,7 +42,6 @@ A solver may add additional data by emmiting stride lines in the following forma
 where `{KEY}` (without quotation chars! we test with `(a-zA-Z0-9_)+` but more is likely to work) is used as the key in summary log  and `{VALUE}` is a valid JSON expression.
 If a key is present multiple time in a solution, only the last value will be reported.
 For this reason avoid the prefix `s_` which is internally used by `stide`.
-
 
 ## Known limitations
 Please check and contribute [issues](https://github.com/manpen/pace26stride/issues) and [pull requests](https://github.com/manpen/pace26stride/pulls).

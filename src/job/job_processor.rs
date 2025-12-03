@@ -4,7 +4,7 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use std::time::Duration;
 use thiserror::Error;
 use tokio::task::JoinError;
-use tracing::{debug, error};
+use tracing::{debug, error, trace};
 
 use crate::{
     commands::arguments,
@@ -86,6 +86,7 @@ pub enum JobResult {
     Valid { size: usize }, // solution size
     Infeasible,
     InvalidInstance,
+    EmptySolution,
     SyntaxError,
     SystemError,
     SolverError,
@@ -106,6 +107,7 @@ impl ToString for JobResult {
             JobResult::Valid { .. } => "Valid",
             JobResult::Infeasible => "Infeasible",
             JobResult::InvalidInstance => "InvalidInstance",
+            JobResult::EmptySolution => "EmptySolution",
             JobResult::SyntaxError => "SyntaxError",
             JobResult::SystemError => "SystemError",
             JobResult::SolverError => "SolverError",
@@ -137,6 +139,9 @@ pub struct JobProcessor {
     #[builder(default)]
     /// use own binary if omitted
     profiler_executable: Option<PathBuf>,
+
+    #[builder(default)]
+    set_stride_envs: bool,
 }
 
 impl JobProcessor {
@@ -216,8 +221,10 @@ impl JobProcessor {
         self.progress.store(JobProgress::Running);
         let exit_status = executor.run().await?;
         debug!(
-            "JobProcessor {:?} child finished with exit status {:?}",
-            self.instance_path, exit_status
+            "JobProcessor {:?} child finished with exit status {:?}. Success: {:?}",
+            self.instance_path,
+            exit_status,
+            exit_status.is_success()
         );
 
         if !exit_status.is_success() {
@@ -246,6 +253,7 @@ impl JobProcessor {
         let (solution_infos, result) = tokio::task::spawn_blocking(move || {
             let mut checker = CheckAndExtract::new();
             let result = checker.process(&instance_path, &solution_path);
+            trace!("[{:?}] CheckAndExtract returned: {result:?}", instance_path);
 
             let solver_infos = checker.into_solution_infos();
 
@@ -267,6 +275,10 @@ impl JobProcessor {
     }
 
     fn env_vars(&self) -> Vec<(String, String)> {
+        if !self.set_stride_envs {
+            return Vec::new();
+        }
+
         vec![
             (
                 "STRIDE_INSTANCE_PATH".to_string(),
@@ -292,5 +304,6 @@ fn map_checker_error_to_job_result(e: CheckerError) -> JobResult {
         CheckerError::SolutionInputError(..) => JobResult::SyntaxError,
         CheckerError::ForestConstructionError(..) => JobResult::InvalidInstance,
         CheckerError::SolutionTreeMatchingError { .. } => JobResult::Infeasible,
+        CheckerError::EmptySolution => JobResult::EmptySolution,
     }
 }

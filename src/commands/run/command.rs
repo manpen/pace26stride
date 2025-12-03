@@ -113,6 +113,7 @@ pub async fn command_run(args: &CommandRunArgs) -> Result<(), CommandRunError> {
                         .grace_period(args.grace_period)
                         .instance_path(instance.path().to_path_buf())
                         .profiler(!args.no_profile)
+                        .set_stride_envs(!args.no_envs)
                         .build()
                         .unwrap(),
                 );

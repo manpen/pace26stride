@@ -12,6 +12,7 @@ pub struct ProgressDisplay {
 
     num_valid: u64,
     num_infeasible: u64,
+    num_emptysolution: u64,
     num_invalidinstance: u64,
     num_syntaxerror: u64,
     num_systemerror: u64,
@@ -45,6 +46,7 @@ impl ProgressDisplay {
             num_systemerror: 0,
             num_solvererror: 0,
             num_timeout: 0,
+            num_emptysolution: 0,
         }
     }
 
@@ -75,8 +77,9 @@ impl ProgressDisplay {
         const CRITICAL: [Attribute; 2] = [Attribute::Bold, Attribute::Underlined];
         let parts = [
             format_num!(num_valid, "Valid", green),
-            format_num!(num_infeasible, "Infeas.", yellow, CRITICAL),
-            format_num!(num_syntaxerror, "SyntaxErr", yellow),
+            format_num!(num_emptysolution, "Empty", yellow),
+            format_num!(num_infeasible, "Infeas", yellow, CRITICAL),
+            format_num!(num_syntaxerror, "SyntErr", red),
             format_num!(num_solvererror, "SolvErr", red),
             format_num!(num_systemerror, "SysErr", red),
             format!("Running: {running}"),
@@ -96,6 +99,7 @@ impl ProgressDisplay {
             JobResult::SystemError => self.num_systemerror += 1,
             JobResult::SolverError => self.num_solvererror += 1,
             JobResult::Timeout => self.num_timeout += 1,
+            JobResult::EmptySolution => self.num_emptysolution += 1,
         }
     }
 
