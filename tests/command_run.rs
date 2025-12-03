@@ -25,6 +25,53 @@ fn test_stride_path() -> PathBuf {
 }
 
 #[test]
+fn no_env() {
+    let tempdir = TempDir::new("no_env_test").unwrap();
+
+    let list_path = test_testcases_dir()
+        .join("test_solver_valid/report_envs.in")
+        .canonicalize()
+        .unwrap();
+
+    run_stride(tempdir.path(), list_path, Some(vec!["-E".into()]));
+    let lines = read_summary(&tempdir.path().join("stride-logs/latest/summary.json"));
+
+    {
+        let envs = lines
+            .get("report_envs")
+            .unwrap()
+            .get("envs")
+            .unwrap()
+            .as_object()
+            .unwrap();
+
+        assert!(!envs.contains_key("STRIDE_INSTANCE_PATH"));
+        assert!(!envs.contains_key("STRIDE_TIMEOUT"));
+        assert!(!envs.contains_key("STRIDE_GRACE"));
+    }
+}
+
+#[test]
+fn no_profiler() {
+    let tempdir = TempDir::new("no_env_test").unwrap();
+
+    let list_path = test_testcases_dir()
+        .join("test_solver_valid/with_info.in")
+        .canonicalize()
+        .unwrap();
+
+    run_stride(tempdir.path(), list_path, Some(vec!["-P".into()]));
+    let lines = read_summary(&tempdir.path().join("stride-logs/latest/summary.json"));
+
+    {
+        let line = lines.get("with_info").unwrap();
+        assert!(line.contains_key("test_info"));
+        assert!(!line.contains_key("s_utime"));
+        assert!(!line.contains_key("s_maxrss"));
+    }
+}
+
+#[test]
 fn summary() {
     let tempdir = TempDir::new("summary_test").unwrap();
 
@@ -33,7 +80,7 @@ fn summary() {
         .canonicalize()
         .unwrap();
 
-    run_stride(tempdir.path(), list_path);
+    run_stride(tempdir.path(), list_path, None);
 
     let lines = read_summary(&tempdir.path().join("stride-logs/latest/summary.json"));
     assert_eq!(lines.len(), 14);
@@ -52,6 +99,7 @@ fn summary() {
         "there"
     );
 
+    // by default envs are set; make sure they are there!
     {
         let envs = lines
             .get("report_envs")
@@ -106,8 +154,10 @@ fn assert_results(lines: &HashMap<String, Map<String, Value>>) {
     }
 }
 
-fn run_stride(tempdir: &Path, list_path: PathBuf) {
-    let mut child = Command::new(test_stride_path())
+fn run_stride(tempdir: &Path, list_path: PathBuf, stride_args: Option<Vec<String>>) {
+    let mut command = Command::new(test_stride_path());
+
+    command
         .current_dir(tempdir)
         .arg("run")
         .arg("--solver")
@@ -117,13 +167,18 @@ fn run_stride(tempdir: &Path, list_path: PathBuf) {
         .arg("-t")
         .arg("2")
         .arg("-g")
-        .arg("1")
-        .arg("--")
-        .arg("-f")
-        .stdout(Stdio::null())
-        .stderr(Stdio::null())
-        .spawn()
-        .unwrap();
+        .arg("1");
+
+    if let Some(args) = stride_args {
+        command.args(args);
+    }
+
+    // args passed to solver
+    command.arg("--").arg("-f");
+
+    command.stdout(Stdio::null()).stderr(Stdio::null());
+
+    let mut child = command.spawn().unwrap();
 
     let result = child.wait().unwrap();
     assert!(result.success());
