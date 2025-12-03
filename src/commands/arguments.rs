@@ -44,7 +44,11 @@ pub struct CommandCheckArgs {
     #[arg(short, long, help = "Stricter linting and all warnings become errors")]
     pub paranoid: bool,
 
-    #[arg(short = 'd', help = "If input is valid, export it as GraphViz dot")]
+    #[arg(
+        short = 'd',
+        long,
+        help = "If input is valid, export it as GraphViz dot"
+    )]
     pub export_dot: bool,
 }
 

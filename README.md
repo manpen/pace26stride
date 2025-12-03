@@ -1,3 +1,49 @@
+# STRIDE --- The PACE26 Maximum-Agreement Forest companion
+The STRIDE system is designed as a companion to the [PACE 2026 challenge](https://pacechallenge.org/2026/) on [Maximum-Agreement Forest](https://pacechallenge.org/2026/maf/).
+It includes tools to execute solvers and verify their solutions.
+
+> [!NOTE]  
+> This is an early preview version that should already work as documented (please report issues if not).
+> We are planning access to a large database of test instances and best known solutions.
+> So ~~like and subscribe~~ watch out for updates.
+
+## Feature overview
+The `stride` tool is build as a single statically linked executable (i.e., you can freely move the binary on your machine) and offers subcommands for several tasks:
+ - `stride check`: Check and visualize instances and solutions
+ - `stride run`: Execute a solver (in parallel), verify and summarize solutions
+
+You may use `stride --help` or `stride {subcommand} --help` for further information.
+
+## Checker & Visualizer
+The primary use case of the checker is to verify a solution computed by your solver by running
+```bash
+stride check <INSTANCE-PATH> <SOLUTION-PATH>
+```
+
+### Visualizing
+By passing the parameter `-d/--export-dot` the checker will emit a visualization of a feasible solution in the [Graphviz DOT language](https://graphviz.org/doc/info/lang.html).
+This feature is intended for small instances only.
+
+You may directly pass the output into Graphviz's `dot` tool (there are also a number of online tools):
+```bash
+stride check --export-dot instance.nw solution.sol | dot -T pdf > solution.pdf
+```
+
+For the `tiny01.nw` instance this may yield:
+![Screenshot: Render of tiny01](docs/dot_render.png)
+
+Each tree of the input is visualized independently where inner nodes are labelled according to the [PACE26 format specification](https://pacechallenge.org/2026/format/#indices-of-inner-nodes).
+Each tree of the solution corresponds to a fixed color (we currently only support ~8 colors).
+A triangular node indicate the root of a tree in the agreement forest; they are always connected to their parent (if any) by a dashed line.
+Removing dashed lines and contracting inner nodes with an out-degree of 1 yields the MAF.
+
+### More checking
+If the solution path is omitted, a number of linters and checks are carried out on the instance.
+This feature is only useful if you create your own instances.
+
+The optional `-p/--paranoid` enables additional linters/stricter rules (e.g., pertaining to whitespace).
+The PACE rules *do not* require that solver solutions pass this stricter mode.
+
 ## Run summary
 We produce a machine-readable summary of each run in `stride-logs/{RUN}/summary.json`.
 It's a newline delimited JSON file, where each line represents the result of a task (i.e. solver run) formatted in JSON.
