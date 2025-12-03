@@ -49,11 +49,11 @@ pub struct CommandCheckArgs {
 
 #[derive(Parser, Debug, Default, Clone)]
 pub struct CommandRunArgs {
-    #[arg(short, long, help = "List of instance files", required = true)]
-    pub instances: Vec<PathBuf>,
-
     #[arg(short, long, env = ENV_SOLVER, help = "Solver program to execute")]
     pub solver: PathBuf,
+
+    #[arg(short, long, help = "List of instance files", required = true)]
+    pub instances: Vec<PathBuf>,
 
     #[arg(short='t', long="timeout", env = ENV_SOFT_TIMEOUT, value_parser = parse_duration, help = "Solver time budget in seconds (then SIGTERM)", default_value="30")]
     pub soft_timeout: Duration,
