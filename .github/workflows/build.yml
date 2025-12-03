@@ -52,8 +52,8 @@ jobs:
       - name: Archive binary
         uses: actions/upload-artifact@v4
         with:
-          name: pace26checker-x86_64-linux
-          path: target/x86_64-unknown-linux-musl/smaller-release/checker
+          name: pace26stride-x86_64-linux
+          path: target/x86_64-unknown-linux-musl/smaller-release/stride
 
   build_osx:
     runs-on: macos-latest
@@ -87,6 +87,6 @@ jobs:
       - name: Archive binary
         uses: actions/upload-artifact@v4
         with:
-          name: pace26checker-osx
-          path: target/smaller-release/checker
+          name: pace26stride-osx
+          path: target/smaller-release/stride
 
