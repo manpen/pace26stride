@@ -52,7 +52,7 @@ pub struct CommandRunArgs {
     #[arg(short, long, env = ENV_SOLVER, help = "Solver program to execute")]
     pub solver: PathBuf,
 
-    #[arg(short, long, help = "List of instance files", required = true)]
+    #[arg(short, long, help = "List of instance files", required = true, num_args(1..))]
     pub instances: Vec<PathBuf>,
 
     #[arg(short='t', long="timeout", env = ENV_SOFT_TIMEOUT, value_parser = parse_duration, help = "Solver time budget in seconds (then SIGTERM)", default_value="30")]

@@ -72,6 +72,31 @@ fn no_profiler() {
 }
 
 #[test]
+fn multiple_instances() {
+    let tempdir = TempDir::new("no_env_test").unwrap();
+
+    let instance_dir = test_testcases_dir()
+        .join("test_solver_valid")
+        .canonicalize()
+        .unwrap();
+
+    let path2 = instance_dir
+        .join("with_info.in")
+        .to_str()
+        .unwrap()
+        .to_owned();
+
+    run_stride(
+        tempdir.path(),
+        instance_dir.join("valid.in"),
+        Some(vec![path2]),
+    );
+    let lines = read_summary(&tempdir.path().join("stride-logs/latest/summary.json"));
+
+    assert_eq!(lines.len(), 2);
+}
+
+#[test]
 fn summary() {
     let tempdir = TempDir::new("summary_test").unwrap();
 
@@ -162,12 +187,12 @@ fn run_stride(tempdir: &Path, list_path: PathBuf, stride_args: Option<Vec<String
         .arg("run")
         .arg("--solver")
         .arg(test_solver_path())
-        .arg("-i")
-        .arg(list_path)
         .arg("-t")
         .arg("2")
         .arg("-g")
-        .arg("1");
+        .arg("1")
+        .arg("-i")
+        .arg(list_path);
 
     if let Some(args) = stride_args {
         command.args(args);
