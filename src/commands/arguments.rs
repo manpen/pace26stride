@@ -50,6 +50,9 @@ pub struct CommandCheckArgs {
         help = "If input is valid, export it as GraphViz dot"
     )]
     pub export_dot: bool,
+
+    #[arg(short = 'H', long, help = "Compute hash of instance [and solution]")]
+    pub hash: bool,
 }
 
 #[derive(Parser, Debug, Default, Clone)]

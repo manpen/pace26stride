@@ -147,3 +147,39 @@ fn invalid_cases() {
         }
     }
 }
+
+#[test]
+fn digest() {
+    let instance_path = testcase_dir()
+        .join("valid_solutions")
+        .join("score10_n07l_lkc.in");
+    let solution_path = testcase_dir()
+        .join("valid_solutions")
+        .join("score10_n07l_lkc.out");
+
+    const IDIGEST: &str = "015e2a313c3470afe151d1ac2a20b0f3";
+    const SDIGEST: &str = "000a5d234052384b8fd9ea7bac0d3c17";
+
+    for with_solution in [false, true] {
+        let mut args = vec![
+            String::from("check"),
+            String::from("-H"),
+            instance_path.as_os_str().to_str().unwrap().into(),
+        ];
+
+        if with_solution {
+            args.push(solution_path.as_os_str().to_str().unwrap().into());
+        }
+
+        let output = command().args(args).output().expect("failed to run binary");
+
+        assert!(output.status.success());
+        let stdout = String::from_utf8(output.stdout).unwrap();
+
+        assert!(stdout.contains(format!("#s idigest \"{IDIGEST}\"").as_str()));
+
+        if with_solution {
+            assert!(stdout.contains(format!("#s sdigest \"{SDIGEST}\"").as_str()));
+        }
+    }
+}

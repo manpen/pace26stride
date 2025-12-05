@@ -32,10 +32,10 @@ stride check --export-dot instance.nw solution.sol | dot -T pdf > solution.pdf
 For the `tiny01.nw` instance this may yield:
 ![Screenshot: Render of tiny01](docs/dot_render.png)
 
-Each tree of the input is visualized independently where inner nodes are labelled according to the [PACE26 format specification](https://pacechallenge.org/2026/format/#indices-of-inner-nodes).
-Each tree of the solution corresponds to a fixed color (we currently only support ~8 colors).
-A triangular node indicate the root of a tree in the agreement forest; they are always connected to their parent (if any) by a dashed line.
-Removing dashed lines and contracting inner nodes with an out-degree of 1 yields the MAF.
+ - Each tree of the input is visualized independently where inner nodes are labelled according to the [PACE26 format specification](https://pacechallenge.org/2026/format/#indices-of-inner-nodes).
+ - Each tree of the solution corresponds to a fixed color (we currently only support ~8 colors).
+ - A triangular node indicate the root of a tree in the agreement forest; they are always connected to their parent (if any) by a dashed line.
+ - Removing dashed lines and contracting inner nodes with an out-degree of 1 yields the MAF.
 
 ### More checking
 If the solution path is omitted, a number of linters and checks are carried out on the instance.
