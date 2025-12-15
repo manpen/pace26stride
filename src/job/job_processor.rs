@@ -6,6 +6,7 @@ use thiserror::Error;
 use tokio::task::JoinError;
 use tracing::{debug, error, trace};
 
+use crate::job::check_and_extract::SolutionInfos;
 use crate::{
     commands::arguments,
     job::{
@@ -115,8 +116,6 @@ impl ToString for JobResult {
         })
     }
 }
-
-pub type SolutionInfos = Vec<(String, serde_json::Value)>;
 
 #[derive(Builder)]
 pub struct JobProcessor {
@@ -255,9 +254,9 @@ impl JobProcessor {
             let result = checker.process(&instance_path, &solution_path);
             trace!("[{:?}] CheckAndExtract returned: {result:?}", instance_path);
 
-            let solver_infos = checker.into_solution_infos();
+            let infos = checker.into_solution_infos();
 
-            (solver_infos, result)
+            (infos, result)
         })
         .await?;
 

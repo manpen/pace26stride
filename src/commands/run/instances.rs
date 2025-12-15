@@ -1,3 +1,4 @@
+use pace26checker::digest::digest_output::InstanceDigest;
 use std::collections::HashSet;
 use std::fs::File;
 use std::hash::Hash;
@@ -10,7 +11,7 @@ use tracing::{debug, warn};
 pub struct Instance {
     name: String,
     path: PathBuf,
-    stride_hash: Option<String>,
+    idigest: Option<InstanceDigest>,
 }
 
 impl Hash for Instance {
@@ -34,8 +35,8 @@ impl Instance {
         &self.path
     }
 
-    pub fn stride_hash(&self) -> Option<&str> {
-        self.stride_hash.as_deref()
+    pub fn idigest(&self) -> Option<InstanceDigest> {
+        self.idigest
     }
 }
 
@@ -49,6 +50,9 @@ pub enum InstancesError {
 
     #[error(transparent)]
     Io(#[from] std::io::Error),
+
+    #[error(transparent)]
+    Serde(#[from] serde_json::Error),
 }
 
 #[derive(Default, Debug, Clone)]
@@ -138,10 +142,12 @@ impl Instances {
     pub fn insert_instace_by_path(&mut self, path: PathBuf) -> bool {
         // we optimize for the good case, where the path is new
         let name = self.unique_name_from_path(&path);
+        let idigest = scan_for_idigest(&path).ok().flatten();
+
         let newly_inserted = self.instances.insert(Instance {
             path,
             name: name.clone(),
-            stride_hash: None, // TODO: Compute stride_hash!
+            idigest,
         });
 
         if !newly_inserted {
@@ -243,6 +249,30 @@ fn normalize_path(path: &Path) -> Option<PathBuf> {
     }
 
     Some(out)
+}
+
+fn scan_for_idigest(file: &Path) -> Result<Option<InstanceDigest>, InstancesError> {
+    // TODO: I used a very simplistic parser here; we might want to switch to the generic
+    // visitor pattern at some point; benchmark!
+    let reader = BufReader::new(File::open(file)?);
+
+    for line in reader.lines() {
+        let Ok(line) = line else { continue };
+        let content = line.trim_start();
+
+        if content.starts_with("#s idigest ") {
+            let digest = content["#p idigest ".len()..].trim();
+            let idigest: InstanceDigest = serde_json::from_str(digest)?;
+            return Ok(Some(idigest));
+        }
+
+        if content.starts_with("#p") || content.starts_with('(') {
+            // by convention the idigest has to appear before the header line
+            break;
+        }
+    }
+
+    Ok(None)
 }
 
 #[cfg(test)]

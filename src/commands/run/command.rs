@@ -7,13 +7,17 @@ use crate::{
             summary_writer::SummaryWriter,
         },
     },
-    job::job_processor::{JobProcessor, JobProcessorBuilder, JobResult, SolutionInfos},
+    job::job_processor::{JobProcessor, JobProcessorBuilder, JobResult},
     run_directory::*,
 };
 use std::{fs::File, sync::Arc};
 use thiserror::Error;
 use tracing::{debug, error, info};
 
+use crate::commands::run::upload::{JobResultUploadAggregation, UploadToStride};
+use crate::job::check_and_extract::SolutionInfos;
+use pace26remote::job_description::JobDescription;
+use pace26remote::upload::UploadError;
 use tokio::{
     task::block_in_place,
     time::{Duration, sleep},
@@ -23,6 +27,9 @@ use tokio::{
 pub enum CommandRunError {
     #[error(transparent)]
     InstancesError(#[from] InstancesError),
+
+    #[error(transparent)]
+    UploadError(#[from] UploadError),
 
     #[error(transparent)]
     Io(#[from] std::io::Error),
@@ -86,17 +93,34 @@ pub async fn command_run(args: &CommandRunArgs) -> Result<(), CommandRunError> {
         .with_max_level(tracing::Level::TRACE)
         .init();
 
-    let mut instances = {
+    let (mut instances, instances_with_digest) = {
         let mut instances = Instances::default();
         for p in &args.instances {
             instances.parse_and_insert_path(p)?;
         }
-        info!("Found {} instances", instances.len());
-        instances.into_iter()
+        let instances_with_digest = instances.iter().filter_map(|i| i.idigest()).count();
+        info!(
+            "Found {} instances. Of those {} have an idigest",
+            instances.len(),
+            instances_with_digest
+        );
+
+        (instances.into_iter(), instances_with_digest)
     };
 
+    let uploader = if instances_with_digest > 0 && !args.offline {
+        Some(Arc::new(UploadToStride::new_with_server(
+            args.solution_server.clone(),
+        )?))
+    } else {
+        None
+    };
+
+    let upload_aggr = Arc::new(JobResultUploadAggregation::new(uploader));
+
     let mut display = ProgressDisplay::new(instances.len());
-    let mut summary_writer = SummaryWriter::new(&arc_run_dir.path().join("summary.json"))?;
+    let summary_writer =
+        Arc::new(SummaryWriter::new(&arc_run_dir.path().join("summary.json")).await?);
 
     let parallel_jobs = args.parallel_jobs.unwrap() as usize; // the argument parser ensures this value is always set
     let mut running_tasks = Vec::with_capacity(parallel_jobs);
@@ -132,10 +156,52 @@ pub async fn command_run(args: &CommandRunArgs) -> Result<(), CommandRunError> {
             while idx < running_tasks.len() {
                 if running_tasks[idx].is_finished(&display, now) {
                     // task finished
-                    let (instance, (job_result, opt_info)) =
+                    let (instance, (job_result, mut opt_info)) =
                         running_tasks.swap_remove(idx).finish(&mut display);
 
-                    if let Err(e) = summary_writer.add_entry(&instance, job_result, opt_info) {
+                    let upload_desc = if !args.offline
+                        && let Some(idigest) = instance.idigest()
+                    {
+                        let runtime = Duration::from_millis(123);
+                        match job_result {
+                            JobResult::Valid { .. } => {
+                                if let Some(opt_info) = &mut opt_info {
+                                    let mut trees = std::mem::take(&mut opt_info.0);
+                                    Some(JobDescription::valid_from_strings(
+                                        idigest,
+                                        &mut trees,
+                                        Some(runtime),
+                                    ))
+                                } else {
+                                    None
+                                }
+                            }
+                            JobResult::Infeasible => {
+                                Some(JobDescription::infeasible(idigest, Some(runtime)))
+                            }
+                            JobResult::Timeout => Some(JobDescription::timeout(idigest, runtime)),
+                            _ => None,
+                        }
+                    } else {
+                        None
+                    };
+
+                    if let Some(desc) = upload_desc {
+                        let upload_aggr = upload_aggr.clone();
+                        let summary_writer = summary_writer.clone();
+                        tokio::spawn(async move {
+                            let result = upload_aggr.upload_and_fetch_best_known(desc).await;
+                            if let Err(e) = summary_writer
+                                .add_entry(&instance, job_result, opt_info, result)
+                                .await
+                            {
+                                error!("SummaryWriter error: {e:?}");
+                            }
+                        });
+                    } else if let Err(e) = summary_writer
+                        .add_entry(&instance, job_result, opt_info, None)
+                        .await
+                    {
                         error!("SummaryWriter error: {e:?}");
                     }
                 } else {

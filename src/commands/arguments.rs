@@ -58,14 +58,14 @@ pub struct CommandCheckArgs {
     #[arg(short = 'H', long, help = "Compute hash of instance [and solution]")]
     pub hash: bool,
 
-    #[arg(short = 's', long, env = ENV_STRIDE_SERVER, default_value = STRIDE_SERVER_DEFAULT, help = "Server to upload to")]
+    #[arg(short = 'S', long, env = ENV_STRIDE_SERVER, default_value = STRIDE_SERVER_DEFAULT, help = "Server to upload to")]
     pub solution_server: Url,
 
     #[arg(short = 'u', long, help = "Upload solution of stride instances")]
     pub upload: bool,
 }
 
-#[derive(Parser, Debug, Default, Clone)]
+#[derive(Parser, Debug, Clone)]
 pub struct CommandRunArgs {
     #[arg(short, long, env = ENV_SOLVER, help = "Solver program to execute")]
     pub solver: PathBuf,
@@ -119,6 +119,12 @@ pub struct CommandRunArgs {
 
     #[arg(last = true, help = "Arguments passed to solver")]
     pub solver_args: Vec<String>,
+
+    #[arg(short = 'S', long, env = ENV_STRIDE_SERVER, default_value = STRIDE_SERVER_DEFAULT, help = "Server to upload to")]
+    pub solution_server: Url,
+
+    #[arg(short = 'O', long, help = "Do not communicate with STRIDE servers")]
+    pub offline: bool,
 }
 
 fn parse_duration(s: &str) -> Result<Duration, String> {

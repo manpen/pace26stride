@@ -7,6 +7,7 @@ default-run = "stride"
 [dependencies]
 pace26checker = { git = "https://github.com/manpen/pace26checker.git", features = ["with_digest"] }
 pace26remote = { git = "https://github.com/manpen/pace26remote.git", features = ["upload"] }
+pace26io = { version = "0.1.0" }
 
 chrono = "0.4.42"
 ctrlc = { version = "3.5.1", features = ["termination"] }
@@ -25,6 +26,8 @@ futures = "0.3.31"
 clap = { version = "4.5.53", features = ["derive", "env"] }
 serde = { version = "1.0.228", features = ["derive"] }
 url = "2.5.7"
+reqwest = "0.12.25"
+dotenv = "0.15.0"
 
 [dev-dependencies]
 regex = "1.12.2"
