@@ -84,7 +84,7 @@ impl SummaryWriter {
         {
             let mut lock = self.file.lock().await;
             lock.write_all(json.as_bytes()).await?;
-            lock.write("\n".as_bytes()).await?;
+            lock.write_all("\n".as_bytes()).await?;
             lock.flush().await?;
         }
 

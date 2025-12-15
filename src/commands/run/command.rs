@@ -22,6 +22,7 @@ use tokio::{
     task::block_in_place,
     time::{Duration, sleep},
 };
+use tokio::time::timeout;
 
 #[derive(Error, Debug)]
 pub enum CommandRunError {
@@ -108,22 +109,23 @@ pub async fn command_run(args: &CommandRunArgs) -> Result<(), CommandRunError> {
         (instances.into_iter(), instances_with_digest)
     };
 
-    let uploader = if instances_with_digest > 0 && !args.offline {
-        Some(Arc::new(UploadToStride::new_with_server(
+    let upload_aggr = if instances_with_digest > 0 && !args.offline {
+        let uploader = Arc::new(UploadToStride::new_with_server(
             args.solution_server.clone(),
-        )?))
+        )?);
+        Some(Arc::new(JobResultUploadAggregation::new(uploader)))
     } else {
         None
     };
 
-    let upload_aggr = Arc::new(JobResultUploadAggregation::new(uploader));
-
     let mut display = ProgressDisplay::new(instances.len());
+
     let summary_writer =
         Arc::new(SummaryWriter::new(&arc_run_dir.path().join("summary.json")).await?);
 
     let parallel_jobs = args.parallel_jobs.unwrap() as usize; // the argument parser ensures this value is always set
     let mut running_tasks = Vec::with_capacity(parallel_jobs);
+    let mut join_handles = Vec::with_capacity(parallel_jobs);
     loop {
         if running_tasks.len() < parallel_jobs {
             if let Some(instance) = instances.next() {
@@ -186,10 +188,12 @@ pub async fn command_run(args: &CommandRunArgs) -> Result<(), CommandRunError> {
                         None
                     };
 
-                    if let Some(desc) = upload_desc {
+                    if let Some(upload_aggr) = upload_aggr.as_ref()
+                        && let Some(desc) = upload_desc
+                    {
                         let upload_aggr = upload_aggr.clone();
                         let summary_writer = summary_writer.clone();
-                        tokio::spawn(async move {
+                        join_handles.push(tokio::spawn(async move {
                             let result = upload_aggr.upload_and_fetch_best_known(desc).await;
                             if let Err(e) = summary_writer
                                 .add_entry(&instance, job_result, opt_info, result)
@@ -197,7 +201,7 @@ pub async fn command_run(args: &CommandRunArgs) -> Result<(), CommandRunError> {
                             {
                                 error!("SummaryWriter error: {e:?}");
                             }
-                        });
+                        }));
                     } else if let Err(e) = summary_writer
                         .add_entry(&instance, job_result, opt_info, None)
                         .await
@@ -210,9 +214,22 @@ pub async fn command_run(args: &CommandRunArgs) -> Result<(), CommandRunError> {
             }
         }
 
+        join_handles.retain(|h| !h.is_finished());
+
         display.tick(running_tasks.len());
 
-        sleep(Duration::from_millis(1)).await
+        sleep(Duration::from_millis(5)).await
+    }
+
+    display.switch_to_postprocessing();
+
+    for mut h in join_handles {
+        loop {
+            display.post_processing_tick();
+            if timeout(Duration::from_millis(20), &mut h).await.is_ok() {
+                break;
+            }
+        }
     }
 
     display.final_message();

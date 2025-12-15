@@ -54,6 +54,18 @@ impl ProgressDisplay {
         &self.mpb
     }
 
+    pub fn switch_to_postprocessing(&self) {
+        self.pb_total.set_length(100000000);
+        self.pb_total.set_style(ProgressStyle::default_bar().template("{spinner:.green} {msg}").unwrap()
+                               .progress_chars("#>-"));
+        self.pb_total.set_message("Postprocessing ... this may take a few seconds");
+    }
+
+    pub fn post_processing_tick(&self) {
+        self.pb_total.inc(1);
+        self.pb_total.tick();
+    }
+
     pub fn tick(&mut self, running: usize) {
         macro_rules! format_num {
             ($key:ident, $name:expr, $color:ident) => {

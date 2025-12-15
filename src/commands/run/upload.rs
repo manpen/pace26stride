@@ -7,12 +7,13 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 use tokio::sync::{mpsc, oneshot};
+use tokio::task::{JoinError, JoinHandle};
 use tokio::time::timeout;
 use tracing::{debug, error, trace};
 use url::Url;
 
 const UPLOAD_AGGREGATION_TIMEOUT: Duration = Duration::from_millis(500);
-const UPLOAD_MAX_BUFFER_SIZE: usize = 25;
+const UPLOAD_MAX_BUFFER_SIZE: usize = 200;
 
 type ReturnChannel = oneshot::Sender<Option<u32>>;
 type MessageToUploader = (Option<ReturnChannel>, JobDescription);
@@ -73,92 +74,89 @@ impl Uploader for UploadToStride {
 }
 
 pub struct JobResultUploadAggregation {
-    channel_to_upload: Option<mpsc::UnboundedSender<MessageToUploader>>,
+    channel_to_upload: mpsc::UnboundedSender<MessageToUploader>,
+    join_handle: JoinHandle<()>,
 }
 
 impl JobResultUploadAggregation {
-    pub fn new<U: Uploader + 'static>(uploader: Option<Arc<U>>) -> Self {
-        let sender = if let Some(uploader) = uploader {
-            let (sender, mut receiver) = mpsc::unbounded_channel::<MessageToUploader>();
+    pub fn new<U: Uploader + 'static>(uploader: Arc<U>) -> Self {
+        let (sender, mut receiver) = mpsc::unbounded_channel::<MessageToUploader>();
 
-            tokio::spawn(async move {
-                let mut messages = Vec::new();
-                let mut return_channels: HashMap<InstanceDigest, Vec<ReturnChannel>> =
-                    HashMap::new();
-                let mut time_since_first = None;
+        let join_handle = tokio::spawn(async move {
+            let mut messages = Vec::new();
+            let mut return_channels: HashMap<InstanceDigest, Vec<ReturnChannel>> = HashMap::new();
+            let mut time_since_first = None;
 
-                let mut keep_running = true;
+            let mut keep_running = true;
 
-                while keep_running {
-                    match timeout(UPLOAD_AGGREGATION_TIMEOUT, receiver.recv()).await {
-                        Ok(Some((channel, msg))) => {
-                            if let Some(channel) = channel {
-                                return_channels
-                                    .entry(msg.idigest)
-                                    .or_default()
-                                    .push(channel);
-                            }
-                            messages.push(msg);
-                            time_since_first = Some(time_since_first.unwrap_or_else(Instant::now));
-
-                            if messages.len() < UPLOAD_MAX_BUFFER_SIZE
-                                && time_since_first
-                                    .is_some_and(|i| i.elapsed() < UPLOAD_AGGREGATION_TIMEOUT)
-                            {
-                                continue;
-                            }
+            while keep_running {
+                match timeout(UPLOAD_AGGREGATION_TIMEOUT, receiver.recv()).await {
+                    Ok(Some((channel, msg))) => {
+                        if let Some(channel) = channel {
+                            return_channels
+                                .entry(msg.idigest)
+                                .or_default()
+                                .push(channel);
                         }
-                        Ok(None) => {
-                            trace!("JobResultUpload senders dropped");
-                            keep_running = false;
-                        }
-                        Err(_) => {
-                            trace!("JobResultUpload task timed out");
+                        messages.push(msg);
+                        time_since_first = Some(time_since_first.unwrap_or_else(Instant::now));
+
+                        if messages.len() < UPLOAD_MAX_BUFFER_SIZE
+                            && time_since_first
+                                .is_some_and(|i| i.elapsed() < UPLOAD_AGGREGATION_TIMEOUT)
+                        {
+                            continue;
                         }
                     }
-
-                    if messages.is_empty() {
-                        continue;
+                    Ok(None) => {
+                        trace!("JobResultUpload senders dropped");
+                        keep_running = false;
                     }
+                    Err(_) => {
+                        trace!("JobResultUpload task timed out");
+                    }
+                }
 
-                    let best_known = uploader.upload(messages.as_slice()).await;
-                    trace!("Received best knowns from server: {:?}", best_known);
+                if messages.is_empty() {
+                    continue;
+                }
 
-                    match best_known {
-                        Ok(best_known) => {
-                            for (idigest, score) in best_known.into_iter() {
-                                if let Some(channels) = return_channels.remove(&idigest) {
-                                    for channel in channels {
-                                        let _ = channel.send(Some(score));
-                                    }
+                let best_known = uploader.upload(messages.as_slice()).await;
+                messages.clear();
+                time_since_first = None;
+                trace!("Received best knowns from server: {:?}", best_known);
+
+                match best_known {
+                    Ok(best_known) => {
+                        for (idigest, score) in best_known.into_iter() {
+                            if let Some(channels) = return_channels.remove(&idigest) {
+                                for channel in channels {
+                                    let _ = channel.send(Some(score));
                                 }
                             }
                         }
-                        Err(err) => {
-                            error!("Uploader failed: {err:?}");
-                        }
                     }
-
-                    for (_, channels) in return_channels.drain() {
-                        for channel in channels {
-                            let _ = channel.send(None);
-                        }
+                    Err(err) => {
+                        error!("Uploader failed: {err:?}");
                     }
                 }
-            });
 
-            Some(sender)
-        } else {
-            None
-        };
+                for (_, channels) in return_channels.drain() {
+                    for channel in channels {
+                        let _ = channel.send(None);
+                    }
+                }
+            }
+        });
 
         Self {
             channel_to_upload: sender,
+            join_handle,
         }
     }
 
     pub async fn upload_and_fetch_best_known(&self, desc: JobDescription) -> Option<u32> {
-        let channel_to_upload = self.channel_to_upload.clone()?;
+        let channel_to_upload = self.channel_to_upload.clone();
 
         if matches!(desc.result, JobResult::Valid { .. }) {
             // we only wait for an answer if the JobResult is valid
@@ -179,6 +177,10 @@ impl JobResultUploadAggregation {
             None
         }
     }
+
+    pub async fn join(self) -> Result<(), JoinError> {
+        self.join_handle.await
+    }
 }
 
 #[cfg(test)]
@@ -193,7 +195,7 @@ mod tests {
         let uploader = Arc::new(MockUploader::default());
         uploader.put(Ok(HashMap::new())).await;
 
-        let aggr = Arc::new(JobResultUploadAggregation::new(Some(uploader.clone())));
+        let aggr = Arc::new(JobResultUploadAggregation::new(uploader.clone()));
 
         let join0 = {
             let aggr = aggr.clone();
@@ -239,7 +241,7 @@ mod tests {
         let uploader = Arc::new(MockUploader::default());
         uploader.put(Ok([(with_response, 12345)].into())).await;
 
-        let aggr = Arc::new(JobResultUploadAggregation::new(Some(uploader.clone())));
+        let aggr = Arc::new(JobResultUploadAggregation::new(uploader.clone()));
 
         let join_wo = {
             let aggr = aggr.clone();
