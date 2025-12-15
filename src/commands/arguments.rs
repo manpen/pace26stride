@@ -1,6 +1,7 @@
 use clap::Parser;
 use std::{path::PathBuf, time::Duration};
 use tracing::error;
+use url::Url;
 
 pub const ENV_SOLVER: &str = "STRIDE_SOLVER";
 pub const ENV_SOFT_TIMEOUT: &str = "STRIDE_TIMEOUT";
@@ -8,6 +9,9 @@ pub const ENV_GRACE_PERIOD: &str = "STRIDE_GRACE";
 pub const ENV_PARALLEL_JOBS: &str = "STRIDE_PARALLEL";
 pub const ENV_REQUIRE_OPTIMAL: &str = "STRIDE_OPTIMAL";
 pub const ENV_KEEP_LOGS: &str = "STRIDE_KEEP";
+
+pub const ENV_STRIDE_SERVER: &str = "STRIDE_SERVER";
+pub const STRIDE_SERVER_DEFAULT: &str = "http://127.0.0.1:8000";
 
 #[derive(Parser, Debug)]
 pub enum Arguments {
@@ -30,7 +34,7 @@ pub struct CommandProfileArgs {
     pub solver_args: Vec<String>,
 }
 
-#[derive(Parser, Debug, Default)]
+#[derive(Parser, Debug)]
 pub struct CommandCheckArgs {
     #[arg(help = "Path to instance file")]
     pub instance: PathBuf,
@@ -53,6 +57,12 @@ pub struct CommandCheckArgs {
 
     #[arg(short = 'H', long, help = "Compute hash of instance [and solution]")]
     pub hash: bool,
+
+    #[arg(short = 's', long, env = ENV_STRIDE_SERVER, default_value = STRIDE_SERVER_DEFAULT, help = "Server to upload to")]
+    pub solution_server: Url,
+
+    #[arg(short = 'u', long, help = "Upload solution of stride instances")]
+    pub upload: bool,
 }
 
 #[derive(Parser, Debug, Default, Clone)]
