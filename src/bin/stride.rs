@@ -31,6 +31,7 @@ async fn dispatch_command(args: &Arguments) -> Result<(), MainError> {
 
 #[tokio::main]
 async fn main() {
+    let _ = dotenv::dotenv();
     let args = parse_prog_arguments();
 
     let res = dispatch_command(&args).await;
