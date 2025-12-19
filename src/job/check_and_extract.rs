@@ -6,6 +6,7 @@ use std::{
 };
 use thiserror::Error;
 
+use crate::run_directory::CreateInstanceDirError;
 use pace26checker::{
     checks::bin_forest::{BinForest, TreeInsertionError},
     io::{
@@ -13,9 +14,10 @@ use pace26checker::{
         solution_reader::*,
     },
 };
+use pace26io::newick::NewickWriter;
 use tracing::{error, warn};
 
-use crate::run_directory::CreateInstanceDirError;
+pub type SolutionInfos = (Vec<String>, Vec<(String, serde_json::Value)>);
 
 #[derive(Default)]
 pub struct CheckAndExtract {
@@ -72,8 +74,13 @@ impl CheckAndExtract {
         self.check_solution()
     }
 
-    pub fn into_solution_infos(self) -> Vec<(String, serde_json::Value)> {
-        self.solution_infos
+    pub fn into_solution_infos(self) -> SolutionInfos {
+        let tree = self
+            .solution_forest
+            .into_iter()
+            .map(|(_, t)| t.top_down().to_newick_string())
+            .collect();
+        (tree, self.solution_infos)
     }
 
     fn read_instance(&mut self, path: &Path) -> Result<(), CheckerError> {

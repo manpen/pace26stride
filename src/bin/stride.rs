@@ -22,7 +22,7 @@ enum MainError {
 
 async fn dispatch_command(args: &Arguments) -> Result<(), MainError> {
     match args {
-        Arguments::Check(args) => command_check(args)?,
+        Arguments::Check(args) => command_check(args).await?,
         Arguments::Run(args) => command_run(args).await?,
         Arguments::Profile(args) => command_profile(args).await?,
     }
@@ -31,6 +31,7 @@ async fn dispatch_command(args: &Arguments) -> Result<(), MainError> {
 
 #[tokio::main]
 async fn main() {
+    let _ = dotenv::dotenv();
     let args = parse_prog_arguments();
 
     let res = dispatch_command(&args).await;

@@ -1,11 +1,12 @@
 use derive_builder::Builder;
 use std::path::Path;
-use std::sync::atomic::{AtomicUsize, Ordering};
-use std::time::Duration;
+use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
+use std::time::{Duration, Instant};
 use thiserror::Error;
 use tokio::task::JoinError;
 use tracing::{debug, error, trace};
 
+use crate::job::check_and_extract::SolutionInfos;
 use crate::{
     commands::arguments,
     job::{
@@ -14,6 +15,7 @@ use crate::{
     },
     run_directory::{CreateInstanceDirError, RunDirectory},
 };
+use std::fmt::Display;
 use std::{path::PathBuf, sync::Arc};
 
 #[derive(Error, Debug)]
@@ -100,10 +102,9 @@ impl JobResult {
 }
 
 // ToString is more appropriate as we only include partial information
-#[allow(clippy::to_string_trait_impl)]
-impl ToString for JobResult {
-    fn to_string(&self) -> String {
-        String::from(match self {
+impl Display for JobResult {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let str = String::from(match self {
             JobResult::Valid { .. } => "Valid",
             JobResult::Infeasible => "Infeasible",
             JobResult::InvalidInstance => "InvalidInstance",
@@ -112,11 +113,10 @@ impl ToString for JobResult {
             JobResult::SystemError => "SystemError",
             JobResult::SolverError => "SolverError",
             JobResult::Timeout => "Timeout",
-        })
+        });
+        write!(f, "{}", str)
     }
 }
-
-pub type SolutionInfos = Vec<(String, serde_json::Value)>;
 
 #[derive(Builder)]
 pub struct JobProcessor {
@@ -142,6 +142,11 @@ pub struct JobProcessor {
 
     #[builder(default)]
     set_stride_envs: bool,
+
+    // somewhat crude hack to avoid using mutexes: we will never measure a runtime <1ms (otherwise
+    // it's set to 1). So 0 indicates no measurement
+    #[builder(default, setter(skip))]
+    solver_runtime_millis: AtomicU64,
 }
 
 impl JobProcessor {
@@ -159,6 +164,11 @@ impl JobProcessor {
 
     pub fn progress(&self) -> JobProgress {
         self.progress.load()
+    }
+
+    pub fn runtime(&self) -> Option<Duration> {
+        let ms = self.solver_runtime_millis.load(Ordering::Acquire);
+        (ms > 0).then(|| Duration::from_millis(ms))
     }
 
     pub async fn run(&self) -> (JobResult, Option<SolutionInfos>) {
@@ -219,6 +229,7 @@ impl JobProcessor {
         let mut executor = executor_builder.build().expect("Executor Builder failed"); // if this fails it is a programming error and will always fail 
 
         self.progress.store(JobProgress::Running);
+        let start = Instant::now();
         let exit_status = executor.run().await?;
         debug!(
             "JobProcessor {:?} child finished with exit status {:?}. Success: {:?}",
@@ -226,6 +237,9 @@ impl JobProcessor {
             exit_status,
             exit_status.is_success()
         );
+
+        self.solver_runtime_millis
+            .store(start.elapsed().as_millis().max(1) as u64, Ordering::Release);
 
         if !exit_status.is_success() {
             return Ok((
@@ -255,9 +269,9 @@ impl JobProcessor {
             let result = checker.process(&instance_path, &solution_path);
             trace!("[{:?}] CheckAndExtract returned: {result:?}", instance_path);
 
-            let solver_infos = checker.into_solution_infos();
+            let infos = checker.into_solution_infos();
 
-            (solver_infos, result)
+            (infos, result)
         })
         .await?;
 

@@ -35,8 +35,8 @@ async fn run(instance: PathBuf, profiler: bool) -> (JobResult, HashMap<String, V
     let (job_result, solution_infos) = job.run().await;
 
     let mut infos = HashMap::new();
-    if let Some(vec) = solution_infos {
-        for (key, value) in vec {
+    if let Some((_, vec)) = solution_infos {
+        for (key, value) in vec.into_iter() {
             infos.insert(key, value);
         }
     }
