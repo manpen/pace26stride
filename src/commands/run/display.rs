@@ -1,5 +1,6 @@
 use console::{Attribute, Style};
 use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::Duration;
 use tokio::time::Instant;
 
@@ -10,14 +11,14 @@ pub struct ProgressDisplay {
     status_line: ProgressBar,
     pb_total: ProgressBar,
 
-    num_valid: u64,
-    num_infeasible: u64,
-    num_emptysolution: u64,
-    num_invalidinstance: u64,
-    num_syntaxerror: u64,
-    num_systemerror: u64,
-    num_solvererror: u64,
-    num_timeout: u64,
+    num_valid: AtomicU64,
+    num_infeasible: AtomicU64,
+    num_emptysolution: AtomicU64,
+    num_invalidinstance: AtomicU64,
+    num_syntaxerror: AtomicU64,
+    num_systemerror: AtomicU64,
+    num_solvererror: AtomicU64,
+    num_timeout: AtomicU64,
 }
 
 impl ProgressDisplay {
@@ -39,15 +40,19 @@ impl ProgressDisplay {
             mpb,
             status_line,
             pb_total,
-            num_valid: 0,
-            num_infeasible: 0,
-            num_invalidinstance: 0,
-            num_syntaxerror: 0,
-            num_systemerror: 0,
-            num_solvererror: 0,
-            num_timeout: 0,
-            num_emptysolution: 0,
+            num_valid: Default::default(),
+            num_infeasible: Default::default(),
+            num_invalidinstance: Default::default(),
+            num_syntaxerror: Default::default(),
+            num_systemerror: Default::default(),
+            num_solvererror: Default::default(),
+            num_timeout: Default::default(),
+            num_emptysolution: Default::default(),
         }
+    }
+
+    pub fn set_total_instance(&self, num_instances: usize) {
+        self.pb_total.set_length(num_instances as u64);
     }
 
     fn multi_progress(&self) -> &MultiProgress {
@@ -56,9 +61,14 @@ impl ProgressDisplay {
 
     pub fn switch_to_postprocessing(&self) {
         self.pb_total.set_length(100000000);
-        self.pb_total.set_style(ProgressStyle::default_bar().template("{spinner:.green} {msg}").unwrap()
-                               .progress_chars("#>-"));
-        self.pb_total.set_message("Postprocessing ... this may take a few seconds");
+        self.pb_total.set_style(
+            ProgressStyle::default_bar()
+                .template("{spinner:.green} {msg}")
+                .unwrap()
+                .progress_chars("#>-"),
+        );
+        self.pb_total
+            .set_message("Postprocessing ... this may take a few seconds");
     }
 
     pub fn post_processing_tick(&self) {
@@ -66,14 +76,15 @@ impl ProgressDisplay {
         self.pb_total.tick();
     }
 
-    pub fn tick(&mut self, running: usize) {
+    pub fn tick(&self, running: usize) {
         macro_rules! format_num {
             ($key:ident, $name:expr, $color:ident) => {
                 format_num!($key, $name, $color, [])
             };
             ($key:ident, $name:expr, $color:ident, $attrs : expr) => {{
-                let text = format!("{}: {:>6}", $name, self.$key);
-                if self.$key == 0 {
+                let value = self.$key.load(Ordering::Acquire);
+                let text = format!("{}: {value:>6}", $name);
+                if value == 0 {
                     text
                 } else {
                     let mut style = console::Style::new().$color();
@@ -100,18 +111,34 @@ impl ProgressDisplay {
         self.status_line.set_message(parts.join(" | "));
     }
 
-    pub fn finish_job(&mut self, result: JobResult) {
+    pub fn finish_job(&self, result: JobResult) {
         self.pb_total.inc(1);
 
         match result {
-            JobResult::Valid { .. } => self.num_valid += 1,
-            JobResult::Infeasible => self.num_infeasible += 1,
-            JobResult::InvalidInstance => self.num_invalidinstance += 1,
-            JobResult::SyntaxError => self.num_syntaxerror += 1,
-            JobResult::SystemError => self.num_systemerror += 1,
-            JobResult::SolverError => self.num_solvererror += 1,
-            JobResult::Timeout => self.num_timeout += 1,
-            JobResult::EmptySolution => self.num_emptysolution += 1,
+            JobResult::Valid { .. } => {
+                self.num_valid.fetch_add(1, Ordering::AcqRel);
+            }
+            JobResult::Infeasible => {
+                self.num_infeasible.fetch_add(1, Ordering::AcqRel);
+            }
+            JobResult::InvalidInstance => {
+                self.num_invalidinstance.fetch_add(1, Ordering::AcqRel);
+            }
+            JobResult::SyntaxError => {
+                self.num_syntaxerror.fetch_add(1, Ordering::AcqRel);
+            }
+            JobResult::SystemError => {
+                self.num_systemerror.fetch_add(1, Ordering::AcqRel);
+            }
+            JobResult::SolverError => {
+                self.num_solvererror.fetch_add(1, Ordering::AcqRel);
+            }
+            JobResult::Timeout => {
+                self.num_timeout.fetch_add(1, Ordering::AcqRel);
+            }
+            JobResult::EmptySolution => {
+                self.num_emptysolution.fetch_add(1, Ordering::AcqRel);
+            }
         }
     }
 
@@ -156,12 +183,8 @@ impl JobProgressBar {
         }
     }
 
-    pub fn update_progress_bar(
-        &mut self,
-        mpb: &ProgressDisplay,
-        progress: JobProgress,
-        now: Instant,
-    ) {
+    pub fn update_progress_bar(&mut self, mpb: &ProgressDisplay, progress: JobProgress) {
+        let now = Instant::now();
         let elapsed = (now.duration_since(self.start).as_millis() as u64).min(self.max_time_millis);
         if elapsed < Self::MILLIS_BEFORE_PROGRESS_BAR {
             return; // do not create a progress bar for short running tasks
@@ -202,7 +225,7 @@ impl JobProgressBar {
         pb.set_position(elapsed);
     }
 
-    pub fn finish(&self, display: &mut ProgressDisplay, result: JobResult) {
+    pub fn finish(&self, display: &ProgressDisplay, result: JobResult) {
         if let Some(pb) = &self.pb {
             display.multi_progress().remove(pb);
         }
