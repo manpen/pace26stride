@@ -11,7 +11,7 @@ pub const ENV_REQUIRE_OPTIMAL: &str = "STRIDE_OPTIMAL";
 pub const ENV_KEEP_LOGS: &str = "STRIDE_KEEP";
 
 pub const ENV_STRIDE_SERVER: &str = "STRIDE_SERVER";
-pub const STRIDE_SERVER_DEFAULT: &str = "http://127.0.0.1:8000";
+pub const STRIDE_SERVER_DEFAULT: &str = "https://pace2026.imada.sdu.dk/";
 
 #[derive(Parser, Debug)]
 pub enum Arguments {
