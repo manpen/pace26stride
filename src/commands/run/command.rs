@@ -17,13 +17,14 @@ use thiserror::Error;
 use tracing::{error, info};
 
 use crate::commands::run::upload::{JobResultUploadAggregation, UploadToStride};
+use crate::job::check_and_extract::SolutionInfos;
+use pace26checker::digest::digest_output::InstanceDigest;
+use pace26remote::job_description;
 use pace26remote::job_description::JobDescription;
 use pace26remote::upload::UploadError;
 use tokio::sync::{OwnedSemaphorePermit, Semaphore};
 use tokio::time::timeout;
 use tokio::time::{Duration, sleep};
-use pace26checker::digest::digest_output::InstanceDigest;
-use crate::job::check_and_extract::SolutionInfos;
 
 const DISPLAY_TICK_MIN_WAIT: Duration = Duration::from_millis(25);
 
@@ -33,8 +34,11 @@ pub async fn command_run(args: &CommandRunArgs) -> Result<(), CommandRunError> {
     initialize_logger(&task_context)?;
     let (mut instances, instances_with_digest) = collect_instances(&args.instances)?;
     task_context.display.set_total_instance(instances.len());
-    if instances_with_digest > 0 {
+    if !args.offline && instances_with_digest > 0 {
         task_context.enable_uploader()?;
+        task_context
+            .display
+            .set_num_stride_instance(instances_with_digest);
     }
 
     let task_context = Arc::new(task_context);
@@ -53,7 +57,7 @@ pub async fn command_run(args: &CommandRunArgs) -> Result<(), CommandRunError> {
             DISPLAY_TICK_MIN_WAIT,
             parallel_jobs_sema.clone().acquire_owned(),
         )
-            .await
+        .await
         {
             let Some(instance) = instances.next() else {
                 break;
@@ -97,12 +101,12 @@ pub async fn command_run(args: &CommandRunArgs) -> Result<(), CommandRunError> {
         }
     }
 
+    sleep(DISPLAY_TICK_MIN_WAIT).await;
+    task_context.display.post_processing_tick();
     task_context.display.final_message();
 
     Ok(())
 }
-
-
 
 #[derive(Error, Debug)]
 pub enum CommandRunError {
@@ -215,10 +219,34 @@ async fn task_main(
         None
     };
 
+    let score = if let Some(desc) = &upload_desc
+        && let job_description::JobResult::Valid { score, .. } = desc.result
+    {
+        context.display.stride_inc_queued();
+        Some(score)
+    } else {
+        None
+    };
+
     let best_known = if let Some(uploader) = context.uploader.as_ref()
         && let Some(desc) = upload_desc
     {
-        uploader.upload_and_fetch_best_known(desc).await
+        let response = uploader.upload_and_fetch_best_known(desc).await;
+        let score = score.unwrap();
+
+        if let Some(best_known) = response {
+            if best_known > score {
+                context.display.stride_new_best_known();
+            } else if best_known == score {
+                context.display.stride_inc_best_known();
+            } else {
+                context.display.stride_suboptimal();
+            }
+        } else {
+            context.display.stride_inc_no_response();
+        }
+
+        response
     } else {
         None
     };
@@ -234,7 +262,12 @@ async fn task_main(
     Ok(())
 }
 
-fn prepare_upload_descriptor(idigest: InstanceDigest, runtime: Duration, job_result: JobResult, opt_info: &mut Option<SolutionInfos>) -> Option<JobDescription> {
+fn prepare_upload_descriptor(
+    idigest: InstanceDigest,
+    runtime: Duration,
+    job_result: JobResult,
+    opt_info: &mut Option<SolutionInfos>,
+) -> Option<JobDescription> {
     match job_result {
         JobResult::Valid { .. } => {
             if let Some(opt_info) = opt_info {

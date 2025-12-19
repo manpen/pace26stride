@@ -9,6 +9,7 @@ use crate::job::job_processor::{JobProgress, JobResult};
 pub struct ProgressDisplay {
     mpb: MultiProgress,
     status_line: ProgressBar,
+    stride_line: ProgressBar,
     pb_total: ProgressBar,
 
     num_valid: AtomicU64,
@@ -19,6 +20,13 @@ pub struct ProgressDisplay {
     num_systemerror: AtomicU64,
     num_solvererror: AtomicU64,
     num_timeout: AtomicU64,
+
+    num_stride_instances: AtomicU64,
+    num_stride_queued: AtomicU64,
+    num_stride_best_known: AtomicU64,
+    num_stride_new_best_known: AtomicU64,
+    num_stride_no_response: AtomicU64,
+    num_stride_suboptimal: AtomicU64,
 }
 
 impl ProgressDisplay {
@@ -28,18 +36,23 @@ impl ProgressDisplay {
         let status_line = mpb.add(ProgressBar::no_length());
         status_line.set_style(ProgressStyle::default_bar().template("{msg}").unwrap());
 
-        let pb_total = mpb.add(indicatif::ProgressBar::new(num_instances as u64));
+        let stride_line = ProgressBar::no_length();
+        stride_line.set_style(ProgressStyle::default_bar().template("{msg}").unwrap());
+
+        let pb_total = mpb.add(ProgressBar::new(num_instances as u64));
         pb_total.set_style(
-            ProgressStyle::with_template("{msg:<15} [{elapsed_precise}] [{bar:50.green/grey}] {human_pos} of {human_len} (est: {eta})").unwrap()
+            ProgressStyle::with_template("{msg:<15.cyan} [{elapsed_precise:.cyan}] [{bar:60.cyan/grey}] {human_pos.cyan} of {human_len} (est: {eta})").unwrap()
                 .progress_chars("#>-"),
         );
 
-        pb_total.set_message("Total finished");
+        pb_total.set_message("Completed tasks     ");
 
         Self {
             mpb,
             status_line,
             pb_total,
+            stride_line,
+
             num_valid: Default::default(),
             num_infeasible: Default::default(),
             num_invalidinstance: Default::default(),
@@ -48,6 +61,13 @@ impl ProgressDisplay {
             num_solvererror: Default::default(),
             num_timeout: Default::default(),
             num_emptysolution: Default::default(),
+
+            num_stride_instances: Default::default(),
+            num_stride_queued: Default::default(),
+            num_stride_best_known: Default::default(),
+            num_stride_new_best_known: Default::default(),
+            num_stride_no_response: Default::default(),
+            num_stride_suboptimal: Default::default(),
         }
     }
 
@@ -72,6 +92,7 @@ impl ProgressDisplay {
     }
 
     pub fn post_processing_tick(&self) {
+        self.tick(0);
         self.pb_total.inc(1);
         self.pb_total.tick();
     }
@@ -83,7 +104,12 @@ impl ProgressDisplay {
             };
             ($key:ident, $name:expr, $color:ident, $attrs : expr) => {{
                 let value = self.$key.load(Ordering::Acquire);
-                let text = format!("{}: {value:>6}", $name);
+
+                let name = $name;
+                let name_wo_space = name.trim_end();
+                let space = &name[name_wo_space.len()..];
+
+                let text = format!("{name_wo_space}:{space} {value:>6}");
                 if value == 0 {
                     text
                 } else {
@@ -98,17 +124,36 @@ impl ProgressDisplay {
         }
 
         const CRITICAL: [Attribute; 2] = [Attribute::Bold, Attribute::Underlined];
-        let parts = [
-            format_num!(num_valid, "Valid", green),
-            format_num!(num_emptysolution, "Empty", yellow),
-            format_num!(num_infeasible, "Infeas", yellow, CRITICAL),
-            format_num!(num_syntaxerror, "SyntErr", red),
-            format_num!(num_solvererror, "SolvErr", red),
-            format_num!(num_systemerror, "SysErr", red),
-            format!("Running: {running}"),
-        ];
+        {
+            let parts = [
+                format_num!(num_valid, "Valid", green),
+                format_num!(num_emptysolution, "Empty   ", yellow),
+                format_num!(num_infeasible, "Infeas", yellow, CRITICAL),
+                format_num!(num_syntaxerror, "SyntErr", red),
+                format_num!(num_solvererror, "SolvErr ", red),
+                format_num!(num_systemerror, "SysErr", red),
+                format!("Running: {running}"),
+            ];
 
-        self.status_line.set_message(parts.join(" | "));
+            self.status_line.set_message(parts.join(" | "));
+        }
+
+        if self.num_stride_instances.load(Ordering::Acquire) == 0 {
+            return;
+        }
+
+        {
+            let parts = [
+                format_num!(num_stride_best_known, "Best ", green),
+                format_num!(num_stride_new_best_known, "New Best", yellow),
+                format_num!(num_stride_suboptimal, "Subopt", red, CRITICAL),
+                format_num!(num_stride_no_response, "No Resp", yellow),
+                format_num!(num_stride_queued, "Transmit", green),
+                format_num!(num_stride_instances, "STRIDE Instances", white),
+            ];
+
+            self.stride_line.set_message(parts.join(" | "));
+        }
     }
 
     pub fn finish_job(&self, result: JobResult) {
@@ -145,6 +190,44 @@ impl ProgressDisplay {
     pub fn final_message(&self) {
         println!("{}", self.status_line.message());
     }
+
+    /////////////// STRIDE
+    pub fn set_num_stride_instance(&self, num_instances: usize) {
+        let prev = self
+            .num_stride_instances
+            .fetch_add(num_instances as u64, Ordering::Release);
+        assert_eq!(prev, 0);
+        if num_instances > 0 {
+            self.mpb
+                .insert_after(&self.status_line, self.stride_line.clone());
+        }
+    }
+
+    pub fn stride_inc_queued(&self) {
+        self.num_stride_queued.fetch_add(1, Ordering::AcqRel);
+    }
+
+    pub fn stride_inc_best_known(&self) {
+        self.num_stride_queued.fetch_sub(1, Ordering::AcqRel);
+        self.num_stride_best_known.fetch_add(1, Ordering::AcqRel);
+    }
+
+    pub fn stride_new_best_known(&self) {
+        self.num_stride_queued.fetch_sub(1, Ordering::AcqRel);
+        self.num_stride_new_best_known
+            .fetch_add(1, Ordering::AcqRel);
+        self.stride_inc_best_known();
+    }
+
+    pub fn stride_inc_no_response(&self) {
+        self.num_stride_queued.fetch_sub(1, Ordering::AcqRel);
+        self.num_stride_no_response.fetch_add(1, Ordering::AcqRel);
+    }
+
+    pub fn stride_suboptimal(&self) {
+        self.num_stride_queued.fetch_sub(1, Ordering::AcqRel);
+        self.num_stride_suboptimal.fetch_add(1, Ordering::AcqRel);
+    }
 }
 
 pub struct JobProgressBar {
@@ -160,7 +243,7 @@ pub struct JobProgressBar {
 
 impl JobProgressBar {
     const MILLIS_BEFORE_PROGRESS_BAR: u64 = 100;
-    const MAX_INSTANCE_NAME_LENGTH: usize = 14;
+    const MAX_INSTANCE_NAME_LENGTH: usize = 20;
 
     pub fn new(mut instance_name: String, soft_timeout: Duration, grace_period: Duration) -> Self {
         let max_time_millis = (soft_timeout + grace_period).as_millis() as u64;
@@ -171,6 +254,10 @@ impl JobProgressBar {
             && idx < instance_name.len()
         {
             instance_name.truncate(idx);
+        }
+
+        while instance_name.len() < Self::MAX_INSTANCE_NAME_LENGTH {
+            instance_name.push(' ');
         }
 
         Self {
@@ -240,7 +327,7 @@ impl JobProgressBar {
 
     fn style_for_running(&self, pb: &ProgressBar) {
         let mut template = format!("{: <15} ", self.instance_name);
-        template += "[{elapsed_precise}] [{bar:50.cyan/blue}] {msg}";
+        template += "[{elapsed_precise}] [{bar:60.cyan/blue}] {msg}";
 
         pb.set_style(
             ProgressStyle::default_bar()
