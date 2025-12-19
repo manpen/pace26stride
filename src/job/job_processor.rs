@@ -15,6 +15,7 @@ use crate::{
     },
     run_directory::{CreateInstanceDirError, RunDirectory},
 };
+use std::fmt::Display;
 use std::{path::PathBuf, sync::Arc};
 
 #[derive(Error, Debug)]
@@ -101,10 +102,9 @@ impl JobResult {
 }
 
 // ToString is more appropriate as we only include partial information
-#[allow(clippy::to_string_trait_impl)]
-impl ToString for JobResult {
-    fn to_string(&self) -> String {
-        String::from(match self {
+impl Display for JobResult {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let str = String::from(match self {
             JobResult::Valid { .. } => "Valid",
             JobResult::Infeasible => "Infeasible",
             JobResult::InvalidInstance => "InvalidInstance",
@@ -113,7 +113,8 @@ impl ToString for JobResult {
             JobResult::SystemError => "SystemError",
             JobResult::SolverError => "SolverError",
             JobResult::Timeout => "Timeout",
-        })
+        });
+        write!(f, "{}", str)
     }
 }
 
