@@ -29,6 +29,15 @@ struct Opts {
     wait_seconds: f64,
 
     #[arg(
+        short = 'r',
+        long,
+        help = "Randomly sample a wait time up to this value (in seconds)",
+        default_value = "0"
+    )]
+    #[serde(default)]
+    random_wait: f64,
+
+    #[arg(
         short,
         long,
         help = "Number of seconds to busy wait before output",
@@ -102,6 +111,17 @@ fn main() {
     if opts.wait_seconds > 0.0 {
         let start = Instant::now();
         while start.elapsed().as_secs_f64() < opts.wait_seconds {
+            std::thread::sleep(std::time::Duration::from_millis(20));
+            if !opts.ignore_sigterm && signal_received.load(Ordering::Acquire) {
+                break;
+            }
+        }
+    }
+
+    if opts.random_wait > 0.0 {
+        let wait = rand::random_range(0.0..opts.random_wait);
+        let start = Instant::now();
+        while start.elapsed().as_secs_f64() < wait {
             std::thread::sleep(std::time::Duration::from_millis(20));
             if !opts.ignore_sigterm && signal_received.load(Ordering::Acquire) {
                 break;
