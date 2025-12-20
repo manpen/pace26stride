@@ -41,6 +41,10 @@ pub async fn command_run(args: &CommandRunArgs) -> Result<(), CommandRunError> {
             .set_num_stride_instance(instances_with_digest);
     }
 
+    if let Some(num_keep) = task_context.args.remove_old_logs {
+        let _ = task_context.run_dir.remove_old_run_logs_only_keep(num_keep);
+    }
+
     let task_context = Arc::new(task_context);
 
     // We will spawn upto `num_parallel_jobs` in parallel. This rate limit is enforced using the

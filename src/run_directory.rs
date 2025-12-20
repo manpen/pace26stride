@@ -1,6 +1,8 @@
+use chrono::NaiveDateTime;
+use std::fs;
 use std::path::{Path, PathBuf};
-
 use thiserror::Error;
+use tracing::{debug, info};
 
 #[derive(Error, Debug)]
 pub enum CreateInstanceDirError {
@@ -28,7 +30,7 @@ impl RunDirectory {
     }
 
     pub fn new_within(parent: &Path) -> Result<Self, std::io::Error> {
-        std::fs::create_dir_all(parent)?;
+        fs::create_dir_all(parent)?;
 
         // we create a uniquely timestamped run directory
         let mut format = RUN_DIR_FORMAT_SHORT;
@@ -114,6 +116,42 @@ impl RunDirectory {
         let parent = self.path.join(TASKS_DIR);
         self.create_instance_dir(&parent, &instance_name)
     }
+
+    pub fn remove_old_run_logs_only_keep(&self, num_keep: usize) -> Result<(), std::io::Error> {
+        let mut logs = Vec::new();
+
+        for dir in self.path.parent().unwrap().read_dir()? {
+            let path = dir?.path();
+            let name = path.file_name().unwrap().to_string_lossy();
+            debug!(
+                "Consider {}, {:?}",
+                name,
+                NaiveDateTime::parse_from_str(&name, RUN_DIR_FORMAT_SHORT)
+            );
+            if NaiveDateTime::parse_from_str(&name, RUN_DIR_FORMAT_SHORT)
+                .or(NaiveDateTime::parse_from_str(&name, RUN_DIR_FORMAT_LONG))
+                .is_err()
+            {
+                continue;
+            }
+            logs.push(path);
+        }
+
+        let num_logs = logs.len();
+        info!("Found {num_logs} old runs");
+        if num_logs <= num_keep {
+            return Ok(());
+        }
+
+        logs.sort_unstable();
+
+        for log in logs.into_iter().take(num_logs - num_keep) {
+            info!("Remove old run log {}", log.display());
+            fs::remove_dir_all(&log)?;
+        }
+
+        Ok(())
+    }
 }
 
 #[cfg(test)]
@@ -172,6 +210,6 @@ mod tests {
         assert!(dir2.exists());
 
         // make sure the two directories are different
-        assert!(dir1 != dir2);
+        assert_ne!(dir1, dir2);
     }
 }
