@@ -15,6 +15,9 @@ We hope to provide an interesting dataset (e.g., for machine learning) that way.
 If you are using the instances, we kindly ask you to share your solutions, especially if they are better than the ones we know so far.**
 
 ## Feature overview
+
+![Screenshot: of stride run](docs/stride_run.gif)
+
 The `stride` tool is build as a single statically linked executable (i.e., you can freely move the binary on your machine) and offers subcommands for several tasks:
 - `stride run`: [Execute a solver](#runner) (in parallel), verify and summarize solutions
 - `stride check`: [Check and visualize](#checker--visualizer) instances and solutions
