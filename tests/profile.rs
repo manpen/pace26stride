@@ -4,7 +4,7 @@ use pace26stride::{
     test_helpers::*,
 };
 use serde_json::Value;
-use std::{collections::HashMap, path::PathBuf, sync::Arc, time::Duration};
+use std::{collections::HashMap, path::PathBuf, time::Duration};
 use tempdir::TempDir;
 
 fn test_solver_path() -> PathBuf {
@@ -18,14 +18,15 @@ fn test_stride_path() -> PathBuf {
 async fn run(instance: PathBuf, profiler: bool) -> (JobResult, HashMap<String, Value>) {
     let instance = test_testcases_dir().join(instance);
     let tempdir = TempDir::new("profile_test").unwrap();
-    let run_dir = Arc::new(RunDirectory::new_within(tempdir.path()).unwrap());
+    let run_dir = RunDirectory::new_within(tempdir.path()).unwrap();
+    let work_dir = run_dir.create_task_dir_for(&instance).unwrap();
 
     let job = JobProcessorBuilder::default()
         .soft_timeout(Duration::from_secs_f64(1.5))
         .grace_period(Duration::from_secs_f64(1.5))
         .solver(test_solver_path())
         .solver_args(vec!["-f".into()])
-        .run_directory(run_dir)
+        .work_dir(work_dir)
         .instance_path(instance)
         .profiler(profiler)
         .profiler_executable(Some(test_stride_path()))

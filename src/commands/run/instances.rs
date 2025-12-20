@@ -71,7 +71,6 @@ impl Instances {
             debug!("Interpret path {path:?} as list");
             self.insert_from_list_file(path)
         } else {
-            debug!("Interpret path {path:?} as instance");
             self.insert_instace_by_path(path.to_owned());
             Ok(())
         }

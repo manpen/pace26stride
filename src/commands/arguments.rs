@@ -91,7 +91,7 @@ pub struct CommandRunArgs {
         short = 'o',
         long = "optimal",
         env = ENV_REQUIRE_OPTIMAL,
-        help = "Treat suboptimal solutions as error"
+        help = "Treat suboptimal solutions as error, e.g. keep logs of suboptimal runs"
     )]
     pub require_optimal: bool,
 
