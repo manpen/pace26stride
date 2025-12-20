@@ -13,10 +13,10 @@ use crate::{
         check_and_extract::{CheckAndExtract, CheckerError},
         solver_executor::{self, ChildExitStatus, ExecutorError, SolverExecutorBuilder},
     },
-    run_directory::{CreateInstanceDirError, RunDirectory},
+    run_directory::CreateInstanceDirError,
 };
 use std::fmt::Display;
-use std::{path::PathBuf, sync::Arc};
+use std::path::PathBuf;
 
 #[derive(Error, Debug)]
 pub enum JobError {
@@ -120,7 +120,7 @@ impl Display for JobResult {
 
 #[derive(Builder)]
 pub struct JobProcessor {
-    run_directory: Arc<RunDirectory>,
+    work_dir: PathBuf,
     instance_path: PathBuf,
 
     solver: PathBuf,
@@ -175,20 +175,14 @@ impl JobProcessor {
         let result = self.run_internal().await;
         self.progress.store(JobProgress::Finished);
 
-        match result {
-            Ok(r) => r,
-            Err(e) => {
-                error!("{e}");
-                (JobResult::SystemError, None)
-            }
-        }
+        result.unwrap_or_else(|e| {
+            error!("{e}");
+            (JobResult::SystemError, None)
+        })
     }
 
     pub async fn run_internal(&self) -> Result<(JobResult, Option<SolutionInfos>), JobError> {
-        let work_dir = self
-            .run_directory
-            .create_task_dir_for(&self.instance_path)?;
-        let solution_path = work_dir.join(solver_executor::PATH_STDOUT);
+        let solution_path = self.work_dir.join(solver_executor::PATH_STDOUT);
 
         debug!("JobProcessor {:?} started", self.instance_path);
         // TODO: we might want to avoid the clone of path and arguments ...
@@ -196,7 +190,7 @@ impl JobProcessor {
 
         executor_builder
             .instance_path(self.instance_path.clone())
-            .working_dir(work_dir)
+            .working_dir(self.work_dir.clone())
             .env(self.env_vars())
             .timeout(self.soft_timeout)
             .grace(self.grace_period);

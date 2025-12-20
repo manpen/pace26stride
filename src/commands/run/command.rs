@@ -14,7 +14,7 @@ use std::collections::hash_set::IntoIter;
 use std::path::PathBuf;
 use std::{fs::File, sync::Arc};
 use thiserror::Error;
-use tracing::{error, info};
+use tracing::{error, info, trace};
 
 use crate::commands::run::upload::{JobResultUploadAggregation, UploadToStride};
 use crate::job::check_and_extract::SolutionInfos;
@@ -114,6 +114,9 @@ pub enum CommandRunError {
     InstancesError(#[from] InstancesError),
 
     #[error(transparent)]
+    InstanceDir(#[from] CreateInstanceDirError),
+
+    #[error(transparent)]
     UploadError(#[from] UploadError),
 
     #[error(transparent)]
@@ -163,9 +166,13 @@ async fn task_main(
     instance: Instance,
     permit: OwnedSemaphorePermit,
 ) -> Result<(), CommandRunError> {
+    let work_dir = context
+        .run_dir
+        .create_task_dir_for(&PathBuf::from(instance.name()))?;
+
     let processor = Arc::new(
         JobProcessorBuilder::default()
-            .run_directory(context.run_dir.clone())
+            .work_dir(work_dir.clone())
             .solver(context.args.solver.clone())
             .solver_args(context.args.solver_args.clone())
             .soft_timeout(context.args.soft_timeout)
@@ -209,6 +216,9 @@ async fn task_main(
     // to free the resources needed for a new solver run
     drop(permit);
 
+    let mut keep_work_dir = context.args.keep_successful_logs;
+    keep_work_dir |= !job_result.is_valid();
+
     // upload and fetch best known
     let upload_desc = if !context.args.offline
         && let Some(idigest) = instance.idigest()
@@ -241,6 +251,7 @@ async fn task_main(
                 context.display.stride_inc_best_known();
             } else {
                 context.display.stride_suboptimal();
+                keep_work_dir |= context.args.require_optimal;
             }
         } else {
             context.display.stride_inc_no_response();
@@ -257,6 +268,23 @@ async fn task_main(
         .await
     {
         error!("SummaryWriter error: {e:?}");
+    }
+
+    if keep_work_dir {
+        let group = job_result.to_string().to_lowercase();
+        let parent = context.run_dir.path().join(group.as_str());
+        let target = parent.join(instance.name());
+        trace!(
+            "Move workdir {} to {}",
+            work_dir.display(),
+            target.display()
+        );
+        tokio::fs::create_dir_all(&parent).await?;
+        tokio::fs::rename(work_dir, &target).await?;
+        tokio::fs::symlink(instance.path().canonicalize()?, target.join("stdin")).await?;
+    } else {
+        trace!("Remove workdir {}", work_dir.display());
+        tokio::fs::remove_dir_all(work_dir).await?;
     }
 
     Ok(())

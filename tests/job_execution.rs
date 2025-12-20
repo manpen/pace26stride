@@ -7,7 +7,7 @@ use pace26stride::{
     run_directory::RunDirectory,
     test_helpers::*,
 };
-use std::{path::PathBuf, sync::Arc, time::Duration};
+use std::{path::PathBuf, time::Duration};
 use tempdir::TempDir;
 
 fn test_solver_path() -> PathBuf {
@@ -24,17 +24,17 @@ async fn test_solutions(key: &str, expected: ExpectedResult) {
     let instances = test_cases_glob(key);
 
     let tempdir = TempDir::new(key).unwrap();
-    let run_dir = Arc::new(RunDirectory::new_within(tempdir.path()).unwrap());
+    let run_dir = RunDirectory::new_within(tempdir.path()).unwrap();
 
     let mut handles = Vec::new();
     for instance_path in instances {
-        let run_dir = run_dir.clone();
+        let work_dir = run_dir.create_task_dir_for(&instance_path).unwrap();
         handles.push(tokio::spawn(async move {
             let job = JobProcessorBuilder::default()
                 .soft_timeout(Duration::from_secs(1))
                 .grace_period(Duration::from_secs(1))
                 .solver(test_solver_path())
-                .run_directory(run_dir)
+                .work_dir(work_dir)
                 .instance_path(instance_path.clone())
                 .set_stride_envs(true)
                 .build()
