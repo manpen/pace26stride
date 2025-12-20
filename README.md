@@ -35,7 +35,7 @@ You may use `stride --help` or `stride {subcommand} --help` for further informat
 The runner allows you to execute a solver on a set of instances.
 In accordance with [optil.io](https://optil.io/optilion/help)'s signal handling, the runner supports soft timeouts (`-t`/`--timeout`) after which a `SIGTERM` is sent to the solver.
 After another grace period (`-g`/`--grace`) the solver is sent a `SIGKILL` signal and all output is disregarded.
-By default, instances are solved in parallel using one solver processor per physical CPU core (can be modified using the `-p`/`--parallel` argument).
+By default, instances are solved in parallel using one solver process per physical CPU core (can be modified using the `-p`/`--parallel` argument).
 
 ```bash
 # execute up to 123 solver instances in parallel, each with a soft timeout of 300s and a grace period of 5s
@@ -91,7 +91,7 @@ STRIDE_TIMEOUT=300
 For a full list of supported environment variables use `stride run --help` and look out for `[env: ]` sections.
 
 ### Environment variables for solver
-By default, a number of environment variables are set for the solver (pass `-E`/`--no-envs` to disble this feature). 
+By default, a number of environment variables are set for the solver (pass `-E`/`--no-envs` to disable this feature). 
 They are intended to ease solver development and **are not** available on `optil.io` or during the official PACE evaluation.
 
 | Name                   | Description                                                                       |
@@ -105,7 +105,7 @@ We refer to instance files containing an `#s idigest` line as *STRIDE instances*
 
 By default, the runner contacts the [STRIDE server](https://pace2026.imada.sdu.dk) about STRIDE instances (and only those!) to
  - upload canonical representations of valid solutions,
- - some error codes (to identify hard instances),
+ - upload some error conditions (to identify hard instances),
  - to retrieve the best known solutions.
 
 The best known scores are directly reported by the runner (e.g., to discern between best-known and suboptimal solutions), and included in the [run summary](#run-summary).
@@ -180,7 +180,7 @@ A solver may add additional data by emmiting stride lines in the following forma
 
 where `{KEY}` (without quotation chars! we test with `(a-zA-Z0-9_)+` but more is likely to work) is used as the key in summary log  and `{VALUE}` is a valid JSON expression.
 If a key is present multiple time in a solution, only the last value will be reported.
-For this reason avoid the prefix `s_` which is internally used by `stide`.
+For this reason avoid the prefix `s_` which is internally used by stride.
 
 
 # Checker & Visualizer
