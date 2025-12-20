@@ -57,9 +57,9 @@ struct Opts {
     #[serde(default)]
     print: Option<String>,
 
-    #[arg(short = 'E', long, help = "Report enviroment variable")]
+    #[arg(short = 'E', long, help = "Report environment variable")]
     #[serde(default)]
-    report_enviroment: bool,
+    report_environment: bool,
 }
 
 fn parse_opts_from_stdin() -> Option<Opts> {
@@ -85,7 +85,7 @@ fn main() {
         opts
     };
 
-    if opts.report_enviroment {
+    if opts.report_environment {
         let vars: HashMap<_, _> = std::env::vars().collect();
         println!("#s envs {}", serde_json::to_string(&vars).unwrap());
     }
