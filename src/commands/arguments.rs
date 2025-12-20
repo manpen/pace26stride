@@ -9,7 +9,7 @@ pub const ENV_GRACE_PERIOD: &str = "STRIDE_GRACE";
 pub const ENV_PARALLEL_JOBS: &str = "STRIDE_PARALLEL";
 pub const ENV_REQUIRE_OPTIMAL: &str = "STRIDE_OPTIMAL";
 pub const ENV_KEEP_LOGS: &str = "STRIDE_KEEP";
-
+pub const ENV_STRIDE_MAX_RUN_LOGS: &str = "STRIDE_MAX_RUN_LOGS";
 pub const ENV_STRIDE_SERVER: &str = "STRIDE_SERVER";
 pub const STRIDE_SERVER_DEFAULT: &str = "https://pace2026.imada.sdu.dk/";
 
@@ -125,6 +125,9 @@ pub struct CommandRunArgs {
 
     #[arg(short = 'O', long, help = "Do not communicate with STRIDE servers")]
     pub offline: bool,
+
+    #[arg(short = 'r', long="max_run_logs", env = ENV_STRIDE_MAX_RUN_LOGS, help="If more run logs are in the stride-log dir, remove oldest ones")]
+    pub remove_old_logs: Option<usize>,
 }
 
 fn parse_duration(s: &str) -> Result<Duration, String> {
