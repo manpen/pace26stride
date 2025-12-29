@@ -181,6 +181,10 @@ impl JobResultUploadAggregation {
     pub async fn join(self) -> Result<(), JoinError> {
         self.join_handle.await
     }
+
+    pub fn is_finished(&self) -> bool {
+        self.join_handle.is_finished()
+    }
 }
 
 #[cfg(test)]
