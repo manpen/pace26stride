@@ -129,6 +129,7 @@ impl ProgressDisplay {
                 format_num!(num_valid, "Valid", green),
                 format_num!(num_emptysolution, "Empty   ", yellow),
                 format_num!(num_infeasible, "Infeas", yellow, CRITICAL),
+                format_num!(num_timeout, "Timeout", yellow),
                 format_num!(num_syntaxerror, "SyntErr", red),
                 format_num!(num_solvererror, "SolvErr ", red),
                 format_num!(num_systemerror, "SysErr", red),
@@ -148,7 +149,7 @@ impl ProgressDisplay {
                 format_num!(num_stride_new_best_known, "New Best", yellow),
                 format_num!(num_stride_suboptimal, "Subopt", red, CRITICAL),
                 format_num!(num_stride_no_response, "No Resp", yellow),
-                format_num!(num_stride_queued, "Transmit", green),
+                format_num!(num_stride_queued, "Transmit Queue            ", green),
                 format_num!(num_stride_instances, "STRIDE Instances", white),
             ];
 
@@ -213,7 +214,6 @@ impl ProgressDisplay {
     }
 
     pub fn stride_new_best_known(&self) {
-        self.num_stride_queued.fetch_sub(1, Ordering::AcqRel);
         self.num_stride_new_best_known
             .fetch_add(1, Ordering::AcqRel);
         self.stride_inc_best_known();

@@ -246,9 +246,8 @@ async fn task_main(
         && let Some(desc) = upload_desc
     {
         let response = uploader.upload_and_fetch_best_known(desc).await;
-        let score = score.unwrap();
 
-        if let Some(best_known) = response {
+        if let Some(best_known) = response && let Some(score) = score {
             if best_known > score {
                 context.display.stride_new_best_known();
             } else if best_known == score {
