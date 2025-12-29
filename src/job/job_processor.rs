@@ -238,10 +238,10 @@ impl JobProcessor {
         if !exit_status.is_success() {
             return Ok((
                 match exit_status {
-                    ChildExitStatus::BeforeTimeout(_) | ChildExitStatus::WithinGrace(_) => {
-                        JobResult::SolverError
+                    ChildExitStatus::BeforeTimeout(_) => JobResult::SolverError,
+                    ChildExitStatus::Timeout | ChildExitStatus::WithinGrace(_) => {
+                        JobResult::Timeout
                     }
-                    ChildExitStatus::Timeout => JobResult::Timeout,
                 },
                 None,
             ));

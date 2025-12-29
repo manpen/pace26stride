@@ -107,7 +107,9 @@ pub async fn command_run(args: &CommandRunArgs) -> Result<(), CommandRunError> {
 
     sleep(DISPLAY_TICK_MIN_WAIT).await;
     task_context.display.post_processing_tick();
+    sleep(DISPLAY_TICK_MIN_WAIT).await;
     task_context.display.final_message();
+    sleep(DISPLAY_TICK_MIN_WAIT).await;
 
     Ok(())
 }
@@ -233,11 +235,14 @@ async fn task_main(
         None
     };
 
-    let score = if let Some(desc) = &upload_desc
-        && let job_description::JobResult::Valid { score, .. } = desc.result
-    {
+    let score = if let Some(desc) = &upload_desc {
         context.display.stride_inc_queued();
-        Some(score)
+
+        if let job_description::JobResult::Valid { score, .. } = desc.result {
+            Some(score)
+        } else {
+            None
+        }
     } else {
         None
     };
@@ -246,9 +251,10 @@ async fn task_main(
         && let Some(desc) = upload_desc
     {
         let response = uploader.upload_and_fetch_best_known(desc).await;
-        let score = score.unwrap();
 
-        if let Some(best_known) = response {
+        if let Some(best_known) = response
+            && let Some(score) = score
+        {
             if best_known > score {
                 context.display.stride_new_best_known();
             } else if best_known == score {
