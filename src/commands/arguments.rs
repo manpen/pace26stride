@@ -12,6 +12,8 @@ pub const ENV_KEEP_LOGS: &str = "STRIDE_KEEP";
 pub const ENV_STRIDE_MAX_RUN_LOGS: &str = "STRIDE_MAX_RUN_LOGS";
 pub const ENV_STRIDE_SERVER: &str = "STRIDE_SERVER";
 pub const STRIDE_SERVER_DEFAULT: &str = "https://pace2026.imada.sdu.dk/";
+pub const ENV_STRIDE_DOWNLOADS_PATH: &str = "STRIDE_DOWNLOADS_PATH";
+pub const STRIDE_DOWNLOADS_PATH_DEFAULT: &str = "stride-downloads";
 
 #[derive(Parser, Debug)]
 pub enum Arguments {
@@ -128,6 +130,9 @@ pub struct CommandRunArgs {
 
     #[arg(short = 'r', long="max_run_logs", env = ENV_STRIDE_MAX_RUN_LOGS, help="If more run logs are in the stride-log dir, remove oldest ones")]
     pub remove_old_logs: Option<usize>,
+
+    #[arg(long, env=ENV_STRIDE_DOWNLOADS_PATH, help="Path where downloads from STRIDE server are placed.", default_value = STRIDE_DOWNLOADS_PATH_DEFAULT)]
+    pub downloads_path: PathBuf,
 }
 
 fn parse_duration(s: &str) -> Result<Duration, String> {
