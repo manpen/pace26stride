@@ -16,12 +16,11 @@ use std::{fs::File, sync::Arc};
 use thiserror::Error;
 use tracing::{error, info, trace};
 
-use crate::commands::run::upload::{JobResultUploadAggregation, UploadToStride};
+use crate::commands::run::upload::{JobResultUploadAggregation, UploadError, UploadToStride};
 use crate::job::check_and_extract::SolutionInfos;
 use pace26checker::digest::digest_output::InstanceDigest;
 use pace26remote::job_description;
 use pace26remote::job_description::JobDescription;
-use pace26remote::upload::UploadError;
 use tokio::sync::{OwnedSemaphorePermit, Semaphore};
 use tokio::time::timeout;
 use tokio::time::{Duration, sleep};
@@ -158,7 +157,7 @@ impl TaskContext {
         assert!(self.uploader.is_none());
 
         let uploader = Arc::new(UploadToStride::new_with_server(
-            self.args.solution_server.clone(),
+            self.args.stride_server.clone(),
         )?);
 
         self.uploader = Some(JobResultUploadAggregation::new(uploader));

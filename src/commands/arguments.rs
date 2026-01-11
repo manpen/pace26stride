@@ -23,6 +23,9 @@ pub enum Arguments {
     #[command(alias = "r", about = "Run solver and postprocess solution")]
     Run(CommandRunArgs),
 
+    #[command(alias = "d", about = "Download stride instances from stride server")]
+    Download(CommandDownloadArgs),
+
     #[command(alias = "p", hide = true)]
     Profile(CommandProfileArgs),
 }
@@ -123,7 +126,7 @@ pub struct CommandRunArgs {
     pub solver_args: Vec<String>,
 
     #[arg(short = 'S', long, env = ENV_STRIDE_SERVER, default_value = STRIDE_SERVER_DEFAULT, help = "Server to upload to")]
-    pub solution_server: Url,
+    pub stride_server: Url,
 
     #[arg(short = 'O', long, help = "Do not communicate with STRIDE servers")]
     pub offline: bool,
@@ -133,6 +136,24 @@ pub struct CommandRunArgs {
 
     #[arg(long, env=ENV_STRIDE_DOWNLOADS_PATH, help="Path where downloads from STRIDE server are placed.", default_value = STRIDE_DOWNLOADS_PATH_DEFAULT)]
     pub downloads_path: PathBuf,
+}
+
+#[derive(Parser, Debug, Clone)]
+pub struct CommandDownloadArgs {
+    #[arg(short, long, help = "List of instance files", required = true, num_args(1..))]
+    pub instances: Vec<PathBuf>,
+
+    #[arg(short = 'S', long, env = ENV_STRIDE_SERVER, default_value = STRIDE_SERVER_DEFAULT, help = "Server to upload to")]
+    pub stride_server: Url,
+
+    #[arg(long, env=ENV_STRIDE_DOWNLOADS_PATH, help="Path where downloads from STRIDE server are placed.", default_value = STRIDE_DOWNLOADS_PATH_DEFAULT)]
+    pub downloads_path: PathBuf,
+
+    #[arg(long, help = "Download and replace existing files")]
+    pub replace_existing: bool,
+
+    #[arg(short, long, help = "Produce as little output as possible")]
+    pub quiet: bool,
 }
 
 fn parse_duration(s: &str) -> Result<Duration, String> {
