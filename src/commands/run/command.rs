@@ -3,28 +3,31 @@ use crate::{
         arguments::CommandRunArgs,
         run::{
             display::{JobProgressBar, ProgressDisplay},
-            instances::*,
             summary_writer::SummaryWriter,
         },
     },
     job::job_processor::{JobProcessorBuilder, JobResult},
     run_directory::*,
 };
-use std::collections::hash_set::IntoIter;
 use std::path::PathBuf;
 use std::{fs::File, sync::Arc};
 use thiserror::Error;
-use tracing::{error, info, trace};
+use tracing::{error, trace};
 
-use crate::commands::run::upload::{JobResultUploadAggregation, UploadToStride};
+use crate::commands::run::upload::{JobResultUploadAggregation, UploadError, UploadToStride};
+use crate::instances::instance::{InstanceError, collect_instances};
+use crate::instances::parser::InstanceSourceParser;
+use crate::instances::{
+    directory::InstanceDirectory, instance::Instance, parser::collect_instances_from_args,
+};
 use crate::job::check_and_extract::SolutionInfos;
 use pace26checker::digest::digest_output::InstanceDigest;
 use pace26remote::job_description;
 use pace26remote::job_description::JobDescription;
-use pace26remote::upload::UploadError;
 use tokio::sync::{OwnedSemaphorePermit, Semaphore};
 use tokio::time::timeout;
 use tokio::time::{Duration, sleep};
+use tracing_subscriber::EnvFilter;
 
 const DISPLAY_TICK_MIN_WAIT: Duration = Duration::from_millis(25);
 
@@ -32,7 +35,12 @@ pub async fn command_run(args: &CommandRunArgs) -> Result<(), CommandRunError> {
     let mut task_context = TaskContext::new(args.clone()).await?;
 
     initialize_logger(&task_context)?;
-    let (mut instances, instances_with_digest) = collect_instances(&args.instances)?;
+    let instance_dir = InstanceDirectory::new(args.downloads_path.clone());
+
+    let mut instances =
+        collect_instances(&instance_dir, collect_instances_from_args(&args.instances)?)?;
+    let instances_with_digest = instances.iter().filter(|i| i.idigest().is_some()).count();
+
     task_context.display.set_total_instance(instances.len());
     if !args.offline && instances_with_digest > 0 {
         task_context.enable_uploader()?;
@@ -63,7 +71,7 @@ pub async fn command_run(args: &CommandRunArgs) -> Result<(), CommandRunError> {
         )
         .await
         {
-            let Some(instance) = instances.next() else {
+            let Some(instance) = instances.pop() else {
                 break;
             };
 
@@ -117,9 +125,6 @@ pub async fn command_run(args: &CommandRunArgs) -> Result<(), CommandRunError> {
 #[derive(Error, Debug)]
 pub enum CommandRunError {
     #[error(transparent)]
-    InstancesError(#[from] InstancesError),
-
-    #[error(transparent)]
     InstanceDir(#[from] CreateInstanceDirError),
 
     #[error(transparent)]
@@ -127,6 +132,12 @@ pub enum CommandRunError {
 
     #[error(transparent)]
     Io(#[from] std::io::Error),
+
+    #[error(transparent)]
+    InstanceEntry(#[from] InstanceSourceParser),
+
+    #[error(transparent)]
+    InstancesError(#[from] InstanceError),
 }
 
 struct TaskContext {
@@ -158,7 +169,7 @@ impl TaskContext {
         assert!(self.uploader.is_none());
 
         let uploader = Arc::new(UploadToStride::new_with_server(
-            self.args.solution_server.clone(),
+            self.args.stride_server.clone(),
         )?);
 
         self.uploader = Some(JobResultUploadAggregation::new(uploader));
@@ -174,7 +185,7 @@ async fn task_main(
 ) -> Result<(), CommandRunError> {
     let work_dir = context
         .run_dir
-        .create_task_dir_for(&PathBuf::from(instance.name()))?;
+        .create_task_dir_for(&PathBuf::from(instance.key()))?;
 
     let processor = Arc::new(
         JobProcessorBuilder::default()
@@ -196,13 +207,7 @@ async fn task_main(
     };
 
     let mut job_progress_bar = JobProgressBar::new(
-        String::from(
-            processor
-                .instance_path()
-                .file_stem()
-                .and_then(|s| s.to_str())
-                .unwrap_or("unnamed"),
-        ),
+        &instance,
         processor.soft_timeout(),
         processor.grace_period(),
     );
@@ -230,7 +235,7 @@ async fn task_main(
         && let Some(idigest) = instance.idigest()
     {
         let runtime = processor.runtime().expect("failed to get runtime"); // runtime will always be set if the child terminated, independently of successes
-        prepare_upload_descriptor(idigest, runtime, job_result, &mut opt_info)
+        prepare_upload_descriptor(*idigest, runtime, job_result, &mut opt_info)
     } else {
         None
     };
@@ -283,7 +288,7 @@ async fn task_main(
     if keep_work_dir {
         let group = job_result.to_string().to_lowercase();
         let parent = context.run_dir.path().join(group.as_str());
-        let target = parent.join(instance.name());
+        let target = parent.join(instance.key());
         trace!(
             "Move workdir {} to {}",
             work_dir.display(),
@@ -325,29 +330,12 @@ fn prepare_upload_descriptor(
     }
 }
 
-fn collect_instances(
-    args_instances: &[PathBuf],
-) -> Result<(IntoIter<Instance>, usize), CommandRunError> {
-    let mut instances = Instances::default();
-    for p in args_instances {
-        instances.parse_and_insert_path(p)?;
-    }
-    let instances_with_digest = instances.iter().filter_map(|i| i.idigest()).count();
-    info!(
-        "Found {} instances. Of those {} have an idigest",
-        instances.len(),
-        instances_with_digest
-    );
-
-    Ok((instances.into_iter(), instances_with_digest))
-}
-
 fn initialize_logger(task_context: &TaskContext) -> Result<(), CommandRunError> {
     let log_file = File::create(task_context.run_dir.path().join("messages.log"))?;
     tracing_subscriber::fmt()
         .with_ansi(false)
         .with_writer(log_file)
-        .with_max_level(tracing::Level::TRACE)
+        .with_env_filter(EnvFilter::from_default_env())
         .init();
     Ok(())
 }

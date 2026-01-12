@@ -1,16 +1,25 @@
 use pace26checker::digest::digest_output::InstanceDigest;
 use pace26remote::job_description::{JobDescription, JobResult};
 use pace26remote::job_transfer::{TransferFromServer, TransferToServer};
-use pace26remote::upload::UploadError;
 use reqwest::{ClientBuilder, IntoUrl};
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
+use thiserror::Error;
 use tokio::sync::{mpsc, oneshot};
 use tokio::task::{JoinError, JoinHandle};
 use tokio::time::timeout;
 use tracing::{debug, error, trace};
-use url::Url;
+use url::{ParseError, Url};
+
+#[derive(Debug, Error)]
+pub enum UploadError {
+    #[error(transparent)]
+    Reqwest(#[from] reqwest::Error),
+
+    #[error(transparent)]
+    ParseError(#[from] ParseError),
+}
 
 const UPLOAD_AGGREGATION_TIMEOUT: Duration = Duration::from_millis(500);
 const UPLOAD_MAX_BUFFER_SIZE: usize = 200;
@@ -46,9 +55,7 @@ impl Uploader for UploadToStride {
         &self,
         jobs: &[JobDescription],
     ) -> Result<HashMap<InstanceDigest, u32>, UploadError> {
-        let client = ClientBuilder::new()
-            .danger_accept_invalid_certs(true)
-            .build()?;
+        let client = ClientBuilder::new().build()?;
 
         let payload = TransferToServer {
             jobs: jobs.to_vec(),

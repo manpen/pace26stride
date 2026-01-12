@@ -1,3 +1,6 @@
+use crate::instances::instance::Instance;
+use crate::job::check_and_extract::SolutionInfos;
+use crate::job::job_processor::JobResult;
 use serde_json::{Map, Value};
 use std::path::Path;
 use thiserror::Error;
@@ -6,9 +9,7 @@ use tokio::io::AsyncWriteExt;
 use tokio::sync::Mutex;
 use tracing::warn;
 
-use crate::job::check_and_extract::SolutionInfos;
-use crate::{commands::run::instances::Instance, job::job_processor::JobResult};
-
+const JSON_KEY_INSTANCE_KEY: &str = "s_key";
 const JSON_KEY_INSTANCE_NAME: &str = "s_name";
 const JSON_KEY_INSTANCE_PATH: &str = "s_path";
 const JSON_KEY_INSTANCE_HASH: &str = "s_idigest";
@@ -38,8 +39,8 @@ impl SummaryWriter {
         let mut row = Map::with_capacity(10);
 
         row.insert(
-            JSON_KEY_INSTANCE_NAME.into(),
-            Value::String(instance.name().into()),
+            JSON_KEY_INSTANCE_KEY.into(),
+            Value::String(instance.key().into()),
         );
         if let Some(path) = instance.path().as_os_str().to_str() {
             row.insert(JSON_KEY_INSTANCE_PATH.into(), Value::String(path.into()));
@@ -49,6 +50,9 @@ impl SummaryWriter {
                 JSON_KEY_INSTANCE_HASH.into(),
                 Value::String(idigest.to_string()),
             );
+        }
+        if let Some(name) = instance.name() {
+            row.insert(JSON_KEY_INSTANCE_NAME.into(), Value::String(name.clone()));
         }
         if let Some(prev_best) = prev_best_known {
             row.insert(
