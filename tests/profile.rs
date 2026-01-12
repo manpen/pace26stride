@@ -63,8 +63,16 @@ async fn profile_time_shortwait() {
     let (result, infos) = run(PathBuf::from("test_solver_valid/shortwait.in"), true).await;
     assert_eq!(result, JobResult::Valid { size: 2 });
 
-    assert!(infos.get("s_wtime").unwrap().as_f64().unwrap() > 0.7, "actual: {:?}", infos.get("s_wtime"));
-    assert!(infos.get("s_utime").unwrap().as_f64().unwrap() < 0.5, "actual: {:?}", infos.get("s_utime"));
+    assert!(
+        infos.get("s_wtime").unwrap().as_f64().unwrap() > 0.7,
+        "actual: {:?}",
+        infos.get("s_wtime")
+    );
+    assert!(
+        infos.get("s_utime").unwrap().as_f64().unwrap() < 0.5,
+        "actual: {:?}",
+        infos.get("s_utime")
+    );
 }
 
 #[tokio::test]
@@ -72,8 +80,16 @@ async fn profile_time_busywait() {
     let (result, infos) = run(PathBuf::from("test_solver_valid/busywait.in"), true).await;
     assert_eq!(result, JobResult::Valid { size: 2 });
 
-    assert!(infos.get("s_wtime").unwrap().as_f64().unwrap() > 0.7, "actual: {:?}", infos.get("s_wtime"));
-    assert!(infos.get("s_utime").unwrap().as_f64().unwrap() > 0.7, "actual: {:?}", infos.get("s_utime"));
+    assert!(
+        infos.get("s_wtime").unwrap().as_f64().unwrap() > 0.7,
+        "actual: {:?}",
+        infos.get("s_wtime")
+    );
+    assert!(
+        infos.get("s_utime").unwrap().as_f64().unwrap() > 0.7,
+        "actual: {:?}",
+        infos.get("s_utime")
+    );
 }
 
 #[tokio::test]

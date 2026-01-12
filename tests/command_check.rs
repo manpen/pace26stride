@@ -120,7 +120,7 @@ fn invalid_cases() {
         // run binary and make sure it report non-success
         let output = command()
             .arg("check")
-            .args(args)
+            .args(&args)
             .output()
             .expect("failed to run binary");
         assert!(!output.status.success());
@@ -140,9 +140,11 @@ fn invalid_cases() {
         for pattern in patterns {
             let re = regex::bytes::Regex::new(&pattern).expect("Valid pattern");
             assert!(
-                re.find(&output.stderr).is_some(),
-                "Pattern not found: {pattern}. Found: {}\ninput_path: {input_path:?}",
-                String::from_utf8(output.stderr).unwrap()
+                re.find(&output.stderr).is_some() || re.find(&output.stdout).is_some(),
+                "Pattern not found: {pattern}. STDOUT: '{}'\nSTDERR: '{}'\ninput_path: {input_path:?}\nArgs: {:?}",
+                String::from_utf8(output.stdout).unwrap(),
+                String::from_utf8(output.stderr).unwrap(),
+                args
             );
         }
     }

@@ -2,7 +2,7 @@ use crate::instances::directory::InstanceDirectory;
 use crate::instances::parser::{InstanceSource, InstanceSourceDescriptor};
 use console::Style;
 use pace26checker::digest::digest_output::InstanceDigest;
-use pace26io::pace::reader::{Action, InstanceReader, ReaderError, InstanceVisitor};
+use pace26io::pace::reader::{Action, InstanceReader, InstanceVisitor, ReaderError};
 use std::collections::HashMap;
 use std::io::{BufReader, ErrorKind};
 use std::path::{Path, PathBuf};
