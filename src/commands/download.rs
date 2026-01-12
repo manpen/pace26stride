@@ -12,6 +12,7 @@ use tokio::fs::File;
 use tracing::info;
 
 use async_compression::tokio::bufread::GzipDecoder;
+use console::Style;
 use indicatif::{ProgressBar, ProgressStyle};
 use std::io;
 use std::sync::Arc;
@@ -56,8 +57,10 @@ pub async fn command_download(args: &CommandDownloadArgs) -> Result<(), CommandD
     }
 
     println!(
-        "Placing downloaded file into {}",
-        download_path.path().display()
+        "Store downloads into {}",
+        Style::new()
+            .blue()
+            .apply_to(download_path.path().display().to_string())
     );
 
     let file_progress = ProgressBar::new(missing_digests.len() as u64);
@@ -112,7 +115,7 @@ pub async fn command_download(args: &CommandDownloadArgs) -> Result<(), CommandD
 
     file_progress.finish();
 
-    println!("Finish in {}ms", start.elapsed().as_millis());
+    println!("Finished in {}ms", start.elapsed().as_millis());
 
     Ok(())
 }
@@ -232,7 +235,11 @@ fn collect_missing_digests(
             if let StrideInstance(digest) = instance.instance_source {
                 Some(digest)
             } else {
-                info!("Ignore non-stride instance {:?}", instance);
+                println!(
+                    "Ignore non-stride instance {}. Did you forget the {} prefix?",
+                    Style::new().red().apply_to(format!("{instance:?}")),
+                    Style::new().yellow().apply_to("s:")
+                );
                 None
             }
         })
@@ -242,7 +249,10 @@ fn collect_missing_digests(
     requested_stride_instances.dedup();
 
     if requested_stride_instances.is_empty() {
-        info!("No stride instances provided");
+        println!(
+            "No stride instances requested. Did you forget the {} prefix?",
+            Style::new().yellow().apply_to("s:")
+        );
     }
 
     let num_requested = requested_stride_instances.len();
@@ -254,7 +264,10 @@ fn collect_missing_digests(
         .collect();
 
     if non_existing_digests.is_empty() {
-        info!("No stride instances missing");
+        println!(
+            "No stride instances missing. If you want to fetch existing instances again use the argument {}",
+            Style::new().yellow().apply_to("--replace-existing")
+        );
     }
 
     non_existing_digests.shuffle(&mut rand::rng());

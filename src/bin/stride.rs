@@ -8,7 +8,6 @@ use pace26stride::commands::{
 
 use pace26stride::commands::download::CommandDownloadError;
 use thiserror::Error;
-use tracing::error;
 
 #[derive(Debug, Error)]
 enum MainError {
@@ -42,7 +41,8 @@ async fn main() {
 
     let res = dispatch_command(&args).await;
     if let Err(e) = res {
-        error!("{e}");
+        println!("{}: {e}", console::Style::new().red().apply_to("Error:"));
+        println!("Debug: {e:?}");
         std::process::exit(1)
     }
 }

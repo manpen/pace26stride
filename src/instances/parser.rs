@@ -1,7 +1,7 @@
 use pace26checker::digest::digest_output::{DigestError, InstanceDigest};
 use std::fmt::{Display, Formatter};
 use std::fs::File;
-use std::io::{BufRead, BufReader};
+use std::io::{BufRead, BufReader, ErrorKind};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use thiserror::Error;
@@ -50,6 +50,9 @@ pub enum InstanceSourceParser {
 
     #[error(transparent)]
     IOError(#[from] std::io::Error),
+
+    #[error("Cannot find list at path {}", console::Style::new().red().apply_to(.0.to_string_lossy().to_string()))]
+    ListFileNotFound(PathBuf),
 }
 
 pub fn collect_instances_from_args(
@@ -58,7 +61,10 @@ pub fn collect_instances_from_args(
     let mut entries = Vec::new();
 
     for (idx, input) in inputs.iter().enumerate() {
-        if input.starts_with("s:") {
+        if input
+            .file_name()
+            .is_some_and(|n| n.to_string_lossy().starts_with("s:"))
+        {
             let digest_string = input.as_os_str().to_string_lossy().to_string();
             let digest =
                 InstanceDigest::try_from(digest_string.split_at(2).1).map_err(|error| {
@@ -91,7 +97,14 @@ pub fn parse_instance_list_file(
 ) -> Result<Vec<InstanceSourceDescriptor>, InstanceSourceParser> {
     let mut entries = Vec::new();
 
-    let list_canon_path = path.canonicalize()?;
+    let list_canon_path = match path.canonicalize() {
+        Ok(p) => p,
+        Err(e) if e.kind() == ErrorKind::NotFound => {
+            return Err(InstanceSourceParser::ListFileNotFound(path.into()));
+        }
+        Err(e) => return Err(InstanceSourceParser::IOError(e)),
+    };
+
     let reader = BufReader::new(File::open(&list_canon_path)?);
 
     let relative_to = list_canon_path

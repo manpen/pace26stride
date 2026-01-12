@@ -27,6 +27,7 @@ use pace26remote::job_description::JobDescription;
 use tokio::sync::{OwnedSemaphorePermit, Semaphore};
 use tokio::time::timeout;
 use tokio::time::{Duration, sleep};
+use tracing_subscriber::EnvFilter;
 
 const DISPLAY_TICK_MIN_WAIT: Duration = Duration::from_millis(25);
 
@@ -334,7 +335,7 @@ fn initialize_logger(task_context: &TaskContext) -> Result<(), CommandRunError> 
     tracing_subscriber::fmt()
         .with_ansi(false)
         .with_writer(log_file)
-        .with_max_level(tracing::Level::TRACE)
+        .with_env_filter(EnvFilter::from_default_env())
         .init();
     Ok(())
 }

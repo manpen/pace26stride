@@ -1,10 +1,10 @@
 use crate::instances::directory::InstanceDirectory;
 use crate::instances::parser::{InstanceSource, InstanceSourceDescriptor};
+use console::Style;
 use pace26checker::digest::digest_output::InstanceDigest;
-use pace26io::pace::reader::InstanceVisitor;
-use pace26io::pace::reader::{Action, InstanceReader, ReaderError};
+use pace26io::pace::reader::{Action, InstanceReader, ReaderError, InstanceVisitor};
 use std::collections::HashMap;
-use std::io::BufReader;
+use std::io::{BufReader, ErrorKind};
 use std::path::{Path, PathBuf};
 use thiserror::Error;
 use tracing::info;
@@ -87,14 +87,27 @@ pub enum InstanceError {
     },
 
     #[error(
-        "Could not find STRIDE instance {0}. Check downloads --downloads_path argument and use subcommand 'download' to fetch missing files"
+        "Could not find STRIDE instance {}. Check argument {} argument or use subcommand {} to fetch missing files",
+        Style::new().red().apply_to(.0.to_string()),
+        Style::new().yellow().apply_to("--downloads_path"),
+        Style::new().yellow().apply_to("download"),
     )]
     StrideInstanceNotFound(InstanceDigest),
+
+    #[error("Cannot find instance at path {}", Style::new().red().apply_to(.0.to_string_lossy().to_string()))]
+    InstanceNotFound(PathBuf),
 }
 
 impl Instance {
     pub fn try_new_from_path(path: &Path) -> Result<Self, InstanceError> {
-        let path = path.canonicalize()?;
+        let path = match path.canonicalize() {
+            Ok(path) => path,
+            Err(e) if e.kind() == ErrorKind::NotFound => {
+                return Err(InstanceError::InstanceNotFound(path.to_path_buf()));
+            }
+            Err(e) => return Err(InstanceError::IO(e)),
+        };
+
         Self::construct_from_path(path)
     }
 
@@ -102,14 +115,16 @@ impl Instance {
         instance_dir: &InstanceDirectory,
         idigest: InstanceDigest,
     ) -> Result<Self, InstanceError> {
-        let path = instance_dir.path_of_digest(&idigest);
-        let mut instance = match Self::try_new_from_path(&path) {
-            Ok(instance) => instance,
-            Err(InstanceError::IO(e)) if e.kind() == std::io::ErrorKind::NotFound => {
+        println!("Idigest");
+        let path = match instance_dir.path_of_digest(&idigest).canonicalize() {
+            Ok(path) => path,
+            Err(e) if e.kind() == ErrorKind::NotFound => {
                 return Err(InstanceError::StrideInstanceNotFound(idigest));
             }
-            Err(e) => return Err(e),
+            Err(e) => return Err(InstanceError::IO(e)),
         };
+
+        let mut instance = Self::construct_from_path(path.clone())?;
 
         if let Some(inst_idigest) = &instance.idigest {
             if inst_idigest != &idigest {
@@ -176,10 +191,12 @@ fn convert_instance_entries_into_instances(
     let mut instances: Vec<Instance> = Vec::with_capacity(entries.len());
 
     for inst in entries {
-        instances.push(match inst.instance_source {
-            InstanceSource::StrideInstance(i) => Instance::try_new_from_idigest(instance_dir, i)?,
-            InstanceSource::InstanceFile(p) => Instance::try_new_from_path(&p)?,
-        });
+        let res = match inst.instance_source {
+            InstanceSource::StrideInstance(i) => Instance::try_new_from_idigest(instance_dir, i),
+            InstanceSource::InstanceFile(p) => Instance::try_new_from_path(&p),
+        };
+
+        instances.push(res?);
     }
     Ok(instances)
 }
