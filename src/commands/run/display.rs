@@ -1,11 +1,10 @@
+use crate::instances::instance::Instance;
+use crate::job::job_processor::{JobProgress, JobResult};
 use console::{Attribute, Style};
 use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::Duration;
 use tokio::time::Instant;
-
-use crate::job::job_processor::{JobProgress, JobResult};
-
 pub struct ProgressDisplay {
     mpb: MultiProgress,
     status_line: ProgressBar,
@@ -41,11 +40,11 @@ impl ProgressDisplay {
 
         let pb_total = mpb.add(ProgressBar::new(num_instances as u64));
         pb_total.set_style(
-            ProgressStyle::with_template("{msg:<15.cyan} [{elapsed_precise:.cyan}] [{bar:60.cyan/grey}] {human_pos.cyan} of {human_len} (est: {eta})").unwrap()
+            ProgressStyle::with_template("{msg:<15.cyan} [{elapsed_precise:.cyan}] [{wide_bar:.cyan/grey}] {human_pos.cyan} of {human_len} (est: {eta})").unwrap()
                 .progress_chars("#>-"),
         );
 
-        pb_total.set_message("Completed tasks     ");
+        pb_total.set_message("Instance             |Trees| Nodes  |");
 
         Self {
             mpb,
@@ -243,22 +242,22 @@ pub struct JobProgressBar {
 
 impl JobProgressBar {
     const MILLIS_BEFORE_PROGRESS_BAR: u64 = 100;
-    const MAX_INSTANCE_NAME_LENGTH: usize = 20;
 
-    pub fn new(mut instance_name: String, soft_timeout: Duration, grace_period: Duration) -> Self {
+    pub fn new(instance: &Instance, soft_timeout: Duration, grace_period: Duration) -> Self {
         let max_time_millis = (soft_timeout + grace_period).as_millis() as u64;
 
-        if let Some((idx, _)) = instance_name
-            .char_indices()
-            .nth(Self::MAX_INSTANCE_NAME_LENGTH)
-            && idx < instance_name.len()
-        {
-            instance_name.truncate(idx);
-        }
-
-        while instance_name.len() < Self::MAX_INSTANCE_NAME_LENGTH {
-            instance_name.push(' ');
-        }
+        let instance_name = format!(
+            "{:<20} | {:>3} | {:>6} |",
+            instance.display_name(20),
+            instance
+                .num_trees()
+                .map(|n| n.to_string())
+                .unwrap_or_else(|| "?".to_string()),
+            instance
+                .num_leaves()
+                .map(|n| n.to_string())
+                .unwrap_or_else(|| "?".to_string()),
+        );
 
         Self {
             start: Instant::now(),
@@ -296,16 +295,16 @@ impl JobProgressBar {
         }
 
         let message: String = match progress {
-            JobProgress::Starting => "starting".into(),
+            JobProgress::Starting => "starting  ".into(),
             JobProgress::Running => {
                 if elapsed > self.soft_timeout.as_millis() as u64 {
-                    Style::new().red().apply_to("grace").to_string()
+                    Style::new().red().apply_to("grace     ").to_string()
                 } else {
-                    "running".into()
+                    "running  ".into()
                 }
             }
-            JobProgress::Checking => "checking".into(),
-            JobProgress::Finished => "done".into(),
+            JobProgress::Checking => "checking  ".into(),
+            JobProgress::Finished => "done      ".into(),
         };
 
         pb.set_message(message);
@@ -327,7 +326,7 @@ impl JobProgressBar {
 
     fn style_for_running(&self, pb: &ProgressBar) {
         let mut template = format!("{: <15} ", self.instance_name);
-        template += "[{elapsed_precise}] [{bar:60.cyan/blue}] {msg}";
+        template += "[{elapsed_precise}] [{wide_bar:.cyan/blue}] {msg}";
 
         pb.set_style(
             ProgressStyle::default_bar()

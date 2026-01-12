@@ -1,7 +1,7 @@
 use crate::commands::arguments::CommandDownloadArgs;
-use crate::instances::instance_directory::InstanceDirectory;
+use crate::instances::directory::InstanceDirectory;
 use crate::instances::parser::InstanceSource::StrideInstance;
-use crate::instances::parser::{InstanceSourceParser, parse_input_arg};
+use crate::instances::parser::{InstanceSourceParser, collect_instances_from_args};
 use bytes::Bytes;
 use futures_util::{Stream, StreamExt};
 use pace26checker::digest::digest_output::InstanceDigest;
@@ -226,10 +226,10 @@ fn collect_missing_digests(
     args: &CommandDownloadArgs,
     download_path: &InstanceDirectory,
 ) -> Result<(usize, Vec<InstanceDigest>), CommandDownloadError> {
-    let mut requested_stride_instances: Vec<_> = parse_input_arg(&args.instances)?
+    let mut requested_stride_instances: Vec<_> = collect_instances_from_args(&args.instances)?
         .into_iter()
         .filter_map(|instance| {
-            if let StrideInstance(digest) = instance.entry {
+            if let StrideInstance(digest) = instance.instance_source {
                 Some(digest)
             } else {
                 info!("Ignore non-stride instance {:?}", instance);

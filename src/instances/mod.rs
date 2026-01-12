@@ -1,2 +1,3 @@
-pub mod instance_directory;
+pub mod directory;
+pub mod instance;
 pub mod parser;

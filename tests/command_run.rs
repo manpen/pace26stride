@@ -1,5 +1,6 @@
 use pace26stride::test_helpers::*;
 use serde_json::{Map, Value};
+use std::ffi::OsStr;
 use std::{
     collections::HashMap,
     fs::File,
@@ -150,15 +151,27 @@ fn relative_solver_path() {
         .canonicalize()
         .unwrap();
 
-    let mut command = Command::new(test_stride_path());
+    let exec_path = test_stride_path();
 
+    let args = vec![
+        String::from("run"),
+        String::from("--solver"),
+        String::from("solver"),
+        String::from("-i"),
+        list_path.to_str().unwrap().to_owned(),
+    ];
+
+    println!(
+        "Run {} {} in {}",
+        exec_path.display(),
+        args.join(" "),
+        tempdir.path().display()
+    );
+
+    let mut command = Command::new(exec_path);
     let output = command
         .current_dir(tempdir.path())
-        .arg("run")
-        .arg("--solver")
-        .arg("solver")
-        .arg("-i")
-        .arg(list_path.to_str().unwrap().to_owned())
+        .args(args)
         .output()
         .unwrap();
 
@@ -211,30 +224,36 @@ fn assert_results(lines: &HashMap<String, Map<String, Value>>) {
 }
 
 fn run_stride(tempdir: &Path, list_path: PathBuf, stride_args: Option<Vec<String>>) {
-    let mut command = Command::new(test_stride_path());
+    let exec_path = test_stride_path();
 
-    command
-        .current_dir(tempdir)
-        .arg("run")
-        .arg("--solver")
-        .arg(test_solver_path())
-        .arg("-t")
-        .arg("2")
-        .arg("-g")
-        .arg("1")
-        .arg("-i")
-        .arg(list_path);
+    let mut args: Vec<String> = vec![
+        "run".into(),
+        "--solver".into(),
+        test_solver_path().to_string_lossy().to_string(),
+        "-t".into(),
+        "2".into(),
+        "-g".into(),
+        "1".into(),
+        "-i".into(),
+        list_path.to_string_lossy().to_string(),
+    ];
 
-    if let Some(args) = stride_args {
-        command.args(args);
+    if let Some(mut sargs) = stride_args {
+        args.append(&mut sargs);
     }
 
-    // args passed to solver
-    command.arg("--").arg("-f");
+    args.push("--".into());
+    args.push("-f".into());
 
-    command.stdout(Stdio::null()).stderr(Stdio::null());
+    println!("Exec {} {}", exec_path.display(), args.join(" "));
 
-    let mut child = command.spawn().unwrap();
+    let mut child = Command::new(exec_path)
+        .args(args)
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .current_dir(tempdir)
+        .spawn()
+        .unwrap();
 
     let result = child.wait().unwrap();
     assert!(result.success());
@@ -254,7 +273,7 @@ fn read_summary(path: &Path) -> HashMap<String, Map<String, Value>> {
 
         let value: Value = serde_json::from_str(content).unwrap();
         let obj = value.as_object().unwrap();
-        let key = obj.get("s_name").unwrap().as_str().unwrap();
+        let key = obj.get("s_key").unwrap().as_str().unwrap();
 
         values.insert(key.into(), obj.clone());
     }
