@@ -115,7 +115,6 @@ impl Instance {
         instance_dir: &InstanceDirectory,
         idigest: InstanceDigest,
     ) -> Result<Self, InstanceError> {
-        println!("Idigest");
         let path = match instance_dir.path_of_digest(&idigest).canonicalize() {
             Ok(path) => path,
             Err(e) if e.kind() == ErrorKind::NotFound => {

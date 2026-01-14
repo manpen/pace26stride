@@ -245,7 +245,7 @@ fn collect_missing_digests(
         })
         .collect();
 
-    requested_stride_instances.sort_unstable();
+    requested_stride_instances.sort_unstable_by(|a, b| b.cmp(a)); // Reversed
     requested_stride_instances.dedup();
 
     if requested_stride_instances.is_empty() {
