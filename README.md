@@ -14,6 +14,16 @@ We hope to provide an interesting dataset (e.g., for machine learning) that way.
 **The whole system is designed as a community effort.
 If you are using the instances, we kindly ask you to share your solutions, especially if they are better than the ones we know so far.**
 
+## TL;DR Getting started
+1.) Download the STRIDE tool:
+  - Either fetch a static binary fresh from the [CI](https://github.com/manpen/pace26stride/actions?query=branch%3Amaster),
+  - Or clone this repository and type `cargo build --release` (requires somewhat recent Rust installation). The binary is placed in `target/release/stride` and can be moved.
+
+2.) Fetch a list of instances from the [STRIDE website](https://pace2026.imada.sdu.dk) or create it yourself
+3.) Fetch the instances from the server by running `stride download -i list.lst`
+4.) Run your solver `stride run -i list.lst -s ./mysolver`
+5.) Explore the results in `stride-logs/latest/` 
+
 ## Feature overview
 
 ![Screenshot: of stride run](docs/stride_run.gif)
@@ -27,7 +37,7 @@ You may use `stride --help` or `stride {subcommand} --help` for further informat
 ## Data protection
 **We are not interested in your personal data** and designed the whole system in good faith to collect as little data as possible while still achieving the goals:
 - Your solver never leaves your machine
-- The runner only uploads normalized solutions (canonical leave and tree order stripped of any comments/stride lines), runtime, and error codes
+- The runner only uploads normalized solutions (canonical leave and tree order and stripped of any comments/STRIDE lines), runtime, and error codes
 - We do not gather any personal data or information about your compute infrastructure
 - We do not store your IP address in our database (though we may enable short-term access logs for debugging purposes)
 
@@ -47,11 +57,19 @@ stride run -s ./mysolver -i instance.lst -- --foo --bar --debug
 
 
 ### Specifying instances
-As illustrates in the following example, there are multiple ways to specify the set of instances to be solved:
+STRIDE supports two types of inputs: 
+   - File path to a manually managed file 
+   - STRIDE instance digests (short: idigest). If you use idigests, the `stride` tool can download and manage instances for you. 
+
+Everywhere where you can specify an instance file path (e.g. after the `-i` argument or in an instance list), you can also reference a STRIDE instance using the `s:`-prefix directly followed by the idigest.
+For instance the `tiny01.nw` instance has the idigest `0010b172a28d0664d5521e1296fc3586`, so you may reference it using `s:0010b172a28d0664d5521e1296fc3586`.
+
+As illustrates in the following example, there are multiple ways to specify the set of instances to be solved.
 
 ```bash
 # explicitly specify instances
 stride run -s ./mysolver -i tiny01.nw tiny02.nw
+stride run -s ./mysolver -i s:0010b172a28d0664d5521e1296fc3586 tiny02.nw
 
 # using shell auto completes
 stride run -s ./mysolver -i tiny*.nw
@@ -68,29 +86,47 @@ stride run -s ./mysolver -i tiny.lst exact0?.nw onemore.nw
    A list file contains at most one entry per line.
    An entry can be:
    - a path to an instance
-   - a path to another list
-   - a glob string (e.g. `tiny0*.nw`)
+   - a path to another list; such lines need to start with the prefix `#i `.
+   - a glob string; such lines need to start with the `#g ` prefix, e.g. `#g tiny0?.nw` or `#g *.nw`.
 
 Relative path in a list file are always interpreted relative to the list's path. 
 If an instance is specified multiple times, it is only solved once; this allows the combination of overlapping lists.
 
-### Environment variables for runner
+### Downloading STRIDE instances
+The STRIDE tool allows you to download all instances identified by their idigest from the server using the `download`/`d` command.
+You can specify instances just like for the `run` command including the use of lists.
+Non-idigest entries are simply ignored.
+
+```bash
+stride download -i s:0010b172a28d0664d5521e1296fc3586 tiny02.nw instances.lst
+```
+
+The downloads are stored in folder indicated by the `--downloads-path` (default `stride-downloads`).
+In case you are using multiple solvers, we recommend using the `.env` file (see section [Environment variables for the tool](#environment-variables-for-the-tool)) to set the enviroment variable `STRIDE_DOWNLOADS_PATH` to a common path, e.g.:
+```bash
+STRIDE_DOWNLOADS_PATH=$HOME/.stride-downloads
+```
+
+All instances already present in the downloads directory are skipped unless you pass the `--replace-existing` argument.
+
+### Environment variables for the tool
 Many of the common runner arguments can also be provided using environment variables:
 ```bash
 export STRIDE_SOLVER=./mysolver
 stride run -i instance.lst
 ```
 
-A convenient way to select good defaults for your use case is also an [`.env` file](https://docs.rs/dotenvy/0.15.7/dotenvy/fn.dotenv.html) in the current working directory or its parents:
+**A convenient way** to select good defaults for your use case is also an [`.env` file](https://docs.rs/dotenvy/0.15.7/dotenvy/fn.dotenv.html) in the current working directory or its parents:
 
 ```bash
 STRIDE_SOLVER=./mysolver
 STRIDE_TIMEOUT=300
+STRIDE_DOWNLOADS_PATH=$HOME/.stride-downloads
 ```
 
 For a full list of supported environment variables use `stride run --help` and look out for `[env: ]` sections.
 
-### Environment variables for solver
+### Environment variables for the solver
 By default, a number of environment variables are set for the solver (pass `-E`/`--no-envs` to disable this feature). 
 They are intended to ease solver development and **are not** available on `optil.io` or during the official PACE evaluation.
 
@@ -138,14 +174,15 @@ Common data processing libraries natively support this format, e.g., [Polars](ht
 
 By default, we record the following columns:
 
-| Name            | Description                                                                     |
-|-----------------|---------------------------------------------------------------------------------|
-| `s_name`        | Name of instance (default: filename of instance)                                |                     
-| `s_instance`    | Path to instance file                                                           |                                                 
-| `s_stride_hash` | Hash value if instance is registered in the global stride database              | 
-| `s_solution`    | Path to solution file (stdout)                                                  |  
-| `s_score`       | If `s_result` indicates a valid solution, report the number of tree in the MAF. |
-| ...             | [Profiling](#profiling) related columns                                         |
+| Name         | Description                                                                      |
+|--------------|----------------------------------------------------------------------------------|
+| `s_key`      | Unique key within a run. If the instance logs are kept, the folder has this name |
+| `s_name`     | Name of the instance as indicated by the `#s name` line                          |
+| `s_instance` | Path to instance file                                                            |                                                 
+| `s_idigest`  | Hash value if instance is registered in the global stride database               | 
+| `s_solution` | Path to solution file (stdout)                                                   |  
+| `s_score`    | If `s_result` indicates a valid solution, report the number of tree in the MAF.  |
+| ...          | [Profiling](#profiling) related columns                                          |
 
 The column `s_result` can take the following values: 
  - `Valid`: the return solution is a feasible agreement forest (size is ignored)
