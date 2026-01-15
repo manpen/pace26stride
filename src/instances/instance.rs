@@ -1,8 +1,11 @@
+use crate::commands::arguments::InstanceOrder;
 use crate::instances::directory::InstanceDirectory;
 use crate::instances::parser::{InstanceSource, InstanceSourceDescriptor};
 use console::Style;
 use pace26checker::digest::digest_output::InstanceDigest;
 use pace26io::pace::reader::{Action, InstanceReader, InstanceVisitor, ReaderError};
+use rand::prelude::SliceRandom;
+use std::cmp::Reverse;
 use std::collections::HashMap;
 use std::io::{BufReader, ErrorKind};
 use std::path::{Path, PathBuf};
@@ -227,6 +230,47 @@ fn dedup_instances(instances: &mut Vec<Instance>) {
             "Removed {} duplicates from instance list",
             len_before - instances.len()
         );
+    }
+}
+
+pub fn sort_instances(instances: &mut [Instance], order: InstanceOrder) {
+    // we later pop the instances from the back; hence the order here is flipped!
+    match order {
+        InstanceOrder::Random => {
+            instances.shuffle(&mut rand::rng());
+        }
+        InstanceOrder::NodesTreesAsc => {
+            instances.sort_unstable_by_key(|i| {
+                Reverse((
+                    i.num_leaves.unwrap_or(usize::MAX),
+                    i.num_trees.unwrap_or(usize::MAX),
+                ))
+            });
+        }
+        InstanceOrder::NodesTreesDesc => {
+            instances.sort_unstable_by_key(|i| {
+                (
+                    i.num_leaves.unwrap_or(usize::MAX),
+                    i.num_trees.unwrap_or(usize::MAX),
+                )
+            });
+        }
+        InstanceOrder::TreesNodesAsc => {
+            instances.sort_unstable_by_key(|i| {
+                Reverse((
+                    i.num_trees.unwrap_or(usize::MAX),
+                    i.num_leaves.unwrap_or(usize::MAX),
+                ))
+            });
+        }
+        InstanceOrder::TreesNodesDesc => {
+            instances.sort_unstable_by_key(|i| {
+                (
+                    i.num_trees.unwrap_or(usize::MAX),
+                    i.num_leaves.unwrap_or(usize::MAX),
+                )
+            });
+        }
     }
 }
 

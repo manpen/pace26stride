@@ -15,7 +15,7 @@ use thiserror::Error;
 use tracing::{error, trace};
 
 use crate::commands::run::upload::{JobResultUploadAggregation, UploadError, UploadToStride};
-use crate::instances::instance::{InstanceError, collect_instances};
+use crate::instances::instance::{InstanceError, collect_instances, sort_instances};
 use crate::instances::parser::InstanceSourceParser;
 use crate::instances::{
     directory::InstanceDirectory, instance::Instance, parser::collect_instances_from_args,
@@ -39,6 +39,8 @@ pub async fn command_run(args: &CommandRunArgs) -> Result<(), CommandRunError> {
 
     let mut instances =
         collect_instances(&instance_dir, collect_instances_from_args(&args.instances)?)?;
+    sort_instances(&mut instances, args.order);
+
     let instances_with_digest = instances.iter().filter(|i| i.idigest().is_some()).count();
 
     task_context.display.set_total_instance(instances.len());
