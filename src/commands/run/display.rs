@@ -188,6 +188,8 @@ impl ProgressDisplay {
     }
 
     pub fn final_message(&self) {
+        self.stride_line.finish();
+        self.status_line.finish();
         println!("{}", self.status_line.message());
     }
 

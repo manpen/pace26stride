@@ -29,7 +29,7 @@ use tokio::time::timeout;
 use tokio::time::{Duration, sleep};
 use tracing_subscriber::EnvFilter;
 
-const DISPLAY_TICK_MIN_WAIT: Duration = Duration::from_millis(25);
+const DISPLAY_TICK_MIN_WAIT: Duration = Duration::from_millis(250);
 
 pub async fn command_run(args: &CommandRunArgs) -> Result<(), CommandRunError> {
     let mut task_context = TaskContext::new(args.clone()).await?;
@@ -115,11 +115,9 @@ pub async fn command_run(args: &CommandRunArgs) -> Result<(), CommandRunError> {
         }
     }
 
-    sleep(DISPLAY_TICK_MIN_WAIT).await;
     task_context.display.post_processing_tick();
     sleep(DISPLAY_TICK_MIN_WAIT).await;
     task_context.display.final_message();
-    sleep(DISPLAY_TICK_MIN_WAIT).await;
 
     Ok(())
 }
