@@ -15,14 +15,14 @@ We hope to provide an interesting dataset (e.g., for machine learning) that way.
 If you are using the instances, we kindly ask you to share your solutions, especially if they are better than the ones we know so far.**
 
 ## TL;DR Getting started
-1.) Download the STRIDE tool:
-  - Either fetch a static binary fresh from the [CI](https://github.com/manpen/pace26stride/actions?query=branch%3Amaster),
-  - Or clone this repository and type `cargo build --release` (requires somewhat recent Rust installation). The binary is placed in `target/release/stride` and can be moved.
+ - Download the STRIDE tool:
+   - Either fetch a static binary fresh from the [CI](https://github.com/manpen/pace26stride/actions?query=branch%3Amaster),
+   - Or clone this repository and type `cargo build --release` (requires somewhat recent Rust installation). The binary is placed in `target/release/stride` and can be moved.
 
-2.) Fetch a list of instances from the [STRIDE website](https://pace2026.imada.sdu.dk) or create it yourself
-3.) Fetch the instances from the server by running `stride download -i list.lst`
-4.) Run your solver `stride run -i list.lst -s ./mysolver`
-5.) Explore the results in `stride-logs/latest/` 
+ - Fetch a list of instances from the [STRIDE website](https://pace2026.imada.sdu.dk) or create it yourself  
+ - Fetch the instances from the server by running `stride download -i list.lst`
+ - Run your solver `stride run -i list.lst -s ./mysolver`
+ - Explore the results in `stride-logs/latest/`. For instance, `stride-logs/latest/summary.json` contains all results, such as score, best known score according to server, and solver resource usage.
 
 ## Feature overview
 
@@ -102,7 +102,7 @@ stride download -i s:0010b172a28d0664d5521e1296fc3586 tiny02.nw instances.lst
 ```
 
 The downloads are stored in folder indicated by the `--downloads-path` (default `stride-downloads`).
-In case you are using multiple solvers, we recommend using the `.env` file (see section [Environment variables for the tool](#environment-variables-for-the-tool)) to set the enviroment variable `STRIDE_DOWNLOADS_PATH` to a common path, e.g.:
+In case you are using multiple solvers, we recommend using the `.env` file (see section [Environment variables for the tool](#environment-variables-for-the-tool)) to set the environment variable `STRIDE_DOWNLOADS_PATH` to a common path, e.g.:
 ```bash
 STRIDE_DOWNLOADS_PATH=$HOME/.stride-downloads
 ```
@@ -197,19 +197,19 @@ The column `s_result` can take the following values:
 ### Profiling
 By default, (can be disabled using `--no-profile`) we collect performance metrics of the solver using POSIX's `getrusage` function and own measurements.
 
-| Name | Description                                                                                                                             |
-| ---- |-----------------------------------------------------------------------------------------------------------------------------------------|
-| `s_wtime` | Walltime of solver run (end time - start time) in seconds                                                                               |
-| `s_utime` | User time as reported by `getrusage` in seconds                                                                                         |
-| `s_stime` | System time as reported by `getrusage` in seconds                                                                                       |
-| `s_maxrss`| Maximum resident set size reported by `getrusage` **in bytes** (for portability). Small values of a few megabyte may not be reliable.   |
-| `s_minflt`| Number of page reclaims (soft page faults)                                                                                              |
-| `s_maxflt`| Number of page faults (hard page faults)                                                                                                |
-| `s_nvcsw` | Number of voluntary context switches                                                                                                    |
-| `s_nivcsw`| Number of involuntary context switches                                                                                                  |
+| Name       | Description                                                                                                                           |
+|------------|---------------------------------------------------------------------------------------------------------------------------------------|
+| `s_wtime`  | Walltime of solver run (end time - start time) in seconds                                                                             |
+| `s_utime`  | User time as reported by `getrusage` in seconds                                                                                       |
+| `s_stime`  | System time as reported by `getrusage` in seconds                                                                                     |
+| `s_maxrss` | Maximum resident set size reported by `getrusage` **in bytes** (for portability). Small values of a few megabyte may not be reliable. |
+| `s_minflt` | Number of page reclaims (soft page faults)                                                                                            |
+| `s_maxflt` | Number of page faults (hard page faults)                                                                                              |
+| `s_nvcsw`  | Number of voluntary context switches                                                                                                  |
+| `s_nivcsw` | Number of involuntary context switches                                                                                                |
 
 ### Report custom data
-A solver may add additional data by emmiting stride lines in the following format:
+A solver may add additional data by emitting stride lines in the following format:
 
 ```text
 #s {KEY} {VALUE}
@@ -238,7 +238,7 @@ stride check --export-dot instance.nw solution.sol | dot -T pdf > solution.pdf
 For the `tiny01.nw` instance this may yield:
 ![Screenshot: Render of tiny01](docs/dot_render.png)
 
-- Each tree of the input is visualized independently where inner nodes are labelled according to the [PACE26 format specification](https://pacechallenge.org/2026/format/#indices-of-inner-nodes).
+- Each tree of the input is visualized independently where inner nodes are labeled according to the [PACE26 format specification](https://pacechallenge.org/2026/format/#indices-of-inner-nodes).
 - Each tree of the solution corresponds to a fixed color (we currently only support ~8 colors).
 - A triangular node indicate the root of a tree in the agreement forest; they are always connected to their parent (if any) by a dashed line.
 - Removing dashed lines and contracting inner nodes with an out-degree of 1 yields the MAF.
@@ -254,6 +254,6 @@ The PACE rules *do not* require that solver solutions pass this stricter mode.
 Please check and contribute [issues](https://github.com/manpen/pace26stride/issues) and [pull requests](https://github.com/manpen/pace26stride/pulls).
 
 ### No Windows support
-PACE uses the [optil.io](https://optil.io/optilion/help) conventions on signalling timeouts.
+PACE uses the [optil.io](https://optil.io/optilion/help) conventions on signaling timeouts.
 This intrinsically relies on POSIX signals, which seem to be unsupported in Windows. 
 Hence, we only support Linux and OSX. 
