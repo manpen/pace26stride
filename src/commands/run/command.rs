@@ -15,7 +15,7 @@ use thiserror::Error;
 use tracing::{error, trace};
 
 use crate::commands::run::upload::{JobResultUploadAggregation, UploadError, UploadToStride};
-use crate::instances::instance::{InstanceError, collect_instances};
+use crate::instances::instance::{InstanceError, collect_instances, sort_instances};
 use crate::instances::parser::InstanceSourceParser;
 use crate::instances::{
     directory::InstanceDirectory, instance::Instance, parser::collect_instances_from_args,
@@ -29,7 +29,7 @@ use tokio::time::timeout;
 use tokio::time::{Duration, sleep};
 use tracing_subscriber::EnvFilter;
 
-const DISPLAY_TICK_MIN_WAIT: Duration = Duration::from_millis(25);
+const DISPLAY_TICK_MIN_WAIT: Duration = Duration::from_millis(250);
 
 pub async fn command_run(args: &CommandRunArgs) -> Result<(), CommandRunError> {
     let mut task_context = TaskContext::new(args.clone()).await?;
@@ -39,6 +39,8 @@ pub async fn command_run(args: &CommandRunArgs) -> Result<(), CommandRunError> {
 
     let mut instances =
         collect_instances(&instance_dir, collect_instances_from_args(&args.instances)?)?;
+    sort_instances(&mut instances, args.order);
+
     let instances_with_digest = instances.iter().filter(|i| i.idigest().is_some()).count();
 
     task_context.display.set_total_instance(instances.len());
@@ -113,11 +115,9 @@ pub async fn command_run(args: &CommandRunArgs) -> Result<(), CommandRunError> {
         }
     }
 
-    sleep(DISPLAY_TICK_MIN_WAIT).await;
     task_context.display.post_processing_tick();
     sleep(DISPLAY_TICK_MIN_WAIT).await;
     task_context.display.final_message();
-    sleep(DISPLAY_TICK_MIN_WAIT).await;
 
     Ok(())
 }

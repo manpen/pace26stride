@@ -1,4 +1,4 @@
-use clap::Parser;
+use clap::{Parser, ValueEnum};
 use std::{path::PathBuf, time::Duration};
 use tracing::error;
 use url::Url;
@@ -11,6 +11,7 @@ pub const ENV_REQUIRE_OPTIMAL: &str = "STRIDE_OPTIMAL";
 pub const ENV_KEEP_LOGS: &str = "STRIDE_KEEP";
 pub const ENV_STRIDE_MAX_RUN_LOGS: &str = "STRIDE_MAX_RUN_LOGS";
 pub const ENV_STRIDE_SERVER: &str = "STRIDE_SERVER";
+pub const ENV_INSTANCE_ORDER: &str = "STRIDE_INSTANCE_ORDER";
 pub const STRIDE_SERVER_DEFAULT: &str = "https://pace2026.imada.sdu.dk/";
 pub const ENV_STRIDE_DOWNLOADS_PATH: &str = "STRIDE_DOWNLOADS_PATH";
 pub const STRIDE_DOWNLOADS_PATH_DEFAULT: &str = "stride-downloads";
@@ -70,35 +71,30 @@ pub struct CommandCheckArgs {
     pub upload: bool,
 }
 
+#[derive(Clone, Copy, Debug, ValueEnum)]
+pub enum InstanceOrder {
+    #[value(alias = "rand", alias = "r")]
+    Random,
+    #[value(alias = "nta")]
+    NodesTreesAsc,
+    #[value(alias = "ntd")]
+    NodesTreesDesc,
+    #[value(alias = "tna")]
+    TreesNodesAsc,
+    #[value(alias = "tnd")]
+    TreesNodesDesc,
+}
+
 #[derive(Parser, Debug, Clone)]
 pub struct CommandRunArgs {
-    #[arg(short, long, env = ENV_SOLVER, help = "Solver program to execute")]
-    pub solver: PathBuf,
-
-    #[arg(short, long, help = "List of instance files", required = true, num_args(1..))]
-    pub instances: Vec<PathBuf>,
-
-    #[arg(short='t', long="timeout", env = ENV_SOFT_TIMEOUT, value_parser = parse_duration, help = "Solver time budget in seconds (then SIGTERM)", default_value="30")]
-    pub soft_timeout: Duration,
+    #[arg(long, env=ENV_STRIDE_DOWNLOADS_PATH, help="Path where downloads from STRIDE server are placed.", default_value = STRIDE_DOWNLOADS_PATH_DEFAULT)]
+    pub downloads_path: PathBuf,
 
     #[arg(short='g', long="grace", env = ENV_GRACE_PERIOD, value_parser = parse_duration, help = "Seconds between SIGTERM and SIGKILL", default_value="5")]
     pub grace_period: Duration,
 
-    #[arg(
-        short = 'p',
-        long = "parallel",
-        env = ENV_PARALLEL_JOBS,
-        help = "Number of solvers to run in parallel; default: number of physical cores"
-    )]
-    pub parallel_jobs: Option<u64>,
-
-    #[arg(
-        short = 'o',
-        long = "optimal",
-        env = ENV_REQUIRE_OPTIMAL,
-        help = "Treat suboptimal solutions as error, e.g. keep logs of suboptimal runs"
-    )]
-    pub require_optimal: bool,
+    #[arg(short, long, help = "List of instance files", required = true, num_args(1..))]
+    pub instances: Vec<PathBuf>,
 
     #[arg(
         short = 'k',
@@ -122,20 +118,42 @@ pub struct CommandRunArgs {
     )]
     pub no_envs: bool,
 
-    #[arg(last = true, help = "Arguments passed to solver")]
-    pub solver_args: Vec<String>,
-
-    #[arg(short = 'S', long, env = ENV_STRIDE_SERVER, default_value = STRIDE_SERVER_DEFAULT, help = "Server to upload to")]
-    pub stride_server: Url,
+    #[arg(short = 'x', value_enum, default_value_t = InstanceOrder::Random, help = "Order in which instances are executed", env = ENV_INSTANCE_ORDER)]
+    pub order: InstanceOrder,
 
     #[arg(short = 'O', long, help = "Do not communicate with STRIDE servers")]
     pub offline: bool,
 
+    #[arg(
+        short = 'p',
+        long = "parallel",
+        env = ENV_PARALLEL_JOBS,
+        help = "Number of solvers to run in parallel; default: number of physical cores"
+    )]
+    pub parallel_jobs: Option<u64>,
+
     #[arg(short = 'r', long="max_run_logs", env = ENV_STRIDE_MAX_RUN_LOGS, help="If more run logs are in the stride-log dir, remove oldest ones")]
     pub remove_old_logs: Option<usize>,
 
-    #[arg(long, env=ENV_STRIDE_DOWNLOADS_PATH, help="Path where downloads from STRIDE server are placed.", default_value = STRIDE_DOWNLOADS_PATH_DEFAULT)]
-    pub downloads_path: PathBuf,
+    #[arg(
+        short = 'o',
+        long = "optimal",
+        env = ENV_REQUIRE_OPTIMAL,
+        help = "Treat suboptimal solutions as error, e.g. keep logs of suboptimal runs"
+    )]
+    pub require_optimal: bool,
+
+    #[arg(short = 'S', long, env = ENV_STRIDE_SERVER, default_value = STRIDE_SERVER_DEFAULT, help = "Server to upload to")]
+    pub stride_server: Url,
+
+    #[arg(short='t', long="timeout", env = ENV_SOFT_TIMEOUT, value_parser = parse_duration, help = "Solver time budget in seconds (then SIGTERM)", default_value="30")]
+    pub soft_timeout: Duration,
+
+    #[arg(short, long, env = ENV_SOLVER, help = "Solver program to execute")]
+    pub solver: PathBuf,
+
+    #[arg(last = true, help = "Arguments passed to solver")]
+    pub solver_args: Vec<String>,
 }
 
 #[derive(Parser, Debug, Clone)]

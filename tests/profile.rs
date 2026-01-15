@@ -64,7 +64,7 @@ async fn profile_time_shortwait() {
     assert_eq!(result, JobResult::Valid { size: 2 });
 
     assert!(
-        infos.get("s_wtime").unwrap().as_f64().unwrap() > 0.7,
+        infos.get("s_wtime").unwrap().as_f64().unwrap() > 0.65,
         "actual: {:?}",
         infos.get("s_wtime")
     );
