@@ -57,7 +57,7 @@ impl SummaryWriter {
         if let Some(prev_best) = prev_best_known {
             row.insert(
                 JSON_KEY_PREV_BEST_KNOWN.into(),
-                Value::String(prev_best.to_string()),
+                Value::Number(prev_best.into()),
             );
         }
 
