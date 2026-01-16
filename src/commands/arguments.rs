@@ -6,6 +6,7 @@ use url::Url;
 pub const ENV_SOLVER: &str = "STRIDE_SOLVER";
 pub const ENV_SOFT_TIMEOUT: &str = "STRIDE_TIMEOUT";
 pub const ENV_GRACE_PERIOD: &str = "STRIDE_GRACE";
+pub const ENV_MEM_LIMT: &str = "STRIDE_MEMORY_LIMIT";
 pub const ENV_PARALLEL_JOBS: &str = "STRIDE_PARALLEL";
 pub const ENV_REQUIRE_OPTIMAL: &str = "STRIDE_OPTIMAL";
 pub const ENV_KEEP_LOGS: &str = "STRIDE_KEEP";
@@ -35,6 +36,13 @@ pub enum Arguments {
 pub struct CommandProfileArgs {
     #[arg(help = "Solver program to execute")]
     pub solver: PathBuf,
+
+    #[arg(
+        short = 'm',
+        long,
+        help = "Tries to limit the memory used by a solver in MiB."
+    )]
+    pub memory_limit: Option<usize>,
 
     #[arg(help = "Arguments passed to solver")]
     pub solver_args: Vec<String>,
@@ -104,6 +112,9 @@ pub struct CommandRunArgs {
     )]
     pub keep_successful_logs: bool,
 
+    #[arg(short = 'm', long, env = ENV_MEM_LIMT, help = "Tries to limit the memory used by a solver in MiB; incompatible with -P/--no-profile")]
+    pub memory_limit: Option<usize>,
+
     #[arg(
         short = 'P',
         long,
@@ -114,7 +125,7 @@ pub struct CommandRunArgs {
     #[arg(
         short = 'E',
         long,
-        help = "Do not set STRIDE_* enviroment variable for solver"
+        help = "Do not set STRIDE_* environment variable for solver"
     )]
     pub no_envs: bool,
 
@@ -202,6 +213,11 @@ pub fn parse_prog_arguments() -> Arguments {
             panic!(
                 "It seems like you provided a relative solver path without './' prefix. Please add './' to the solver path or provide an absolute path."
             );
+        }
+
+        if opts.memory_limit.is_some() && opts.no_profile {
+            error!("The arguments -m/--memory-limit and -P/--no-profile are mutually exclusive");
+            panic!("The arguments -m/--memory-limit and -P/--no-profile are mutually exclusive");
         }
     }
 

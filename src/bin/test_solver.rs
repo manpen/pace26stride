@@ -108,6 +108,14 @@ fn main() {
         .unwrap();
     }
 
+    let dummy_memory = if let Some(size) = opts.extra_alloc {
+        let mut vec: Vec<u8> = black_box(vec![0u8; size]);
+        vec.fill(1); // actually access the memory
+        vec
+    } else {
+        Vec::new()
+    };
+
     if opts.wait_seconds > 0.0 {
         let start = Instant::now();
         while start.elapsed().as_secs_f64() < opts.wait_seconds {
@@ -154,10 +162,6 @@ fn main() {
         print!("{}", contents);
     }
 
-    if let Some(size) = opts.extra_alloc {
-        let mut vec: Vec<u8> = black_box(vec![0u8; size]);
-        vec.fill(1); // acutally access the memory
-    }
-
+    let _ = &dummy_memory; // keep around
     std::process::exit(opts.exit_code);
 }

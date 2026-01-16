@@ -18,6 +18,8 @@ use crate::{
 use std::fmt::Display;
 use std::path::PathBuf;
 
+pub const OOM_EXIT_CODE: i32 = 137;
+
 #[derive(Error, Debug)]
 pub enum JobError {
     #[error("IO error: {0}")]
@@ -93,6 +95,7 @@ pub enum JobResult {
     SystemError,
     SolverError,
     Timeout,
+    OutOfMemory,
 }
 
 impl JobResult {
@@ -113,6 +116,7 @@ impl Display for JobResult {
             JobResult::SystemError => "SystemError",
             JobResult::SolverError => "SolverError",
             JobResult::Timeout => "Timeout",
+            JobResult::OutOfMemory => "OutOfMemory",
         });
         write!(f, "{}", str)
     }
@@ -126,6 +130,9 @@ pub struct JobProcessor {
     solver: PathBuf,
     soft_timeout: Duration,
     grace_period: Duration,
+
+    #[builder(default)]
+    memory_limit_in_mib: Option<usize>,
 
     #[builder(default)]
     solver_args: Vec<String>,
@@ -162,6 +169,10 @@ impl JobProcessor {
         self.grace_period
     }
 
+    pub fn memory_limit_in_mib(&self) -> Option<usize> {
+        self.memory_limit_in_mib
+    }
+
     pub fn progress(&self) -> JobProgress {
         self.progress.load()
     }
@@ -192,6 +203,7 @@ impl JobProcessor {
             .instance_path(self.instance_path.clone())
             .working_dir(self.work_dir.clone())
             .env(self.env_vars())
+            .memory_limit_in_mib(self.memory_limit_in_mib)
             .timeout(self.soft_timeout)
             .grace(self.grace_period);
 
@@ -210,7 +222,14 @@ impl JobProcessor {
                 .expect("Convert solver path into String")
                 .into();
 
-            let mut args: Vec<String> = vec!["p".into(), solver_path, "--".into()];
+            let mut args: Vec<String> = vec!["p".into(), solver_path];
+
+            if let Some(limit) = self.memory_limit_in_mib {
+                args.push("-m".into());
+                args.push(limit.to_string());
+            }
+
+            args.push("--".into());
             args.extend_from_slice(&self.solver_args);
 
             executor_builder.solver_path(profiler_path).args(args);
@@ -242,6 +261,7 @@ impl JobProcessor {
                     ChildExitStatus::Timeout | ChildExitStatus::WithinGrace(_) => {
                         JobResult::Timeout
                     }
+                    ChildExitStatus::OutOfMemory => JobResult::OutOfMemory,
                 },
                 None,
             ));

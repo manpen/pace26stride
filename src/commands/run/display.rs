@@ -2,7 +2,7 @@ use crate::instances::instance::Instance;
 use crate::job::job_processor::{JobProgress, JobResult};
 use console::{Attribute, Style};
 use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::time::Duration;
 use tokio::time::Instant;
 pub struct ProgressDisplay {
@@ -10,6 +10,8 @@ pub struct ProgressDisplay {
     status_line: ProgressBar,
     stride_line: ProgressBar,
     pb_total: ProgressBar,
+
+    report_oom: AtomicBool,
 
     num_valid: AtomicU64,
     num_infeasible: AtomicU64,
@@ -19,6 +21,7 @@ pub struct ProgressDisplay {
     num_systemerror: AtomicU64,
     num_solvererror: AtomicU64,
     num_timeout: AtomicU64,
+    num_outofmemory: AtomicU64,
 
     num_stride_instances: AtomicU64,
     num_stride_queued: AtomicU64,
@@ -52,6 +55,8 @@ impl ProgressDisplay {
             pb_total,
             stride_line,
 
+            report_oom: AtomicBool::new(false),
+
             num_valid: Default::default(),
             num_infeasible: Default::default(),
             num_invalidinstance: Default::default(),
@@ -60,6 +65,7 @@ impl ProgressDisplay {
             num_solvererror: Default::default(),
             num_timeout: Default::default(),
             num_emptysolution: Default::default(),
+            num_outofmemory: Default::default(),
 
             num_stride_instances: Default::default(),
             num_stride_queued: Default::default(),
@@ -72,6 +78,10 @@ impl ProgressDisplay {
 
     pub fn set_total_instance(&self, num_instances: usize) {
         self.pb_total.set_length(num_instances as u64);
+    }
+
+    pub fn enable_oom_report(&self, enabled: bool) {
+        self.report_oom.store(enabled, Ordering::Relaxed);
     }
 
     fn multi_progress(&self) -> &MultiProgress {
@@ -124,16 +134,18 @@ impl ProgressDisplay {
 
         const CRITICAL: [Attribute; 2] = [Attribute::Bold, Attribute::Underlined];
         {
-            let parts = [
-                format_num!(num_valid, "Valid", green),
-                format_num!(num_emptysolution, "Empty   ", yellow),
-                format_num!(num_infeasible, "Infeas", yellow, CRITICAL),
-                format_num!(num_timeout, "Timeout", yellow),
-                format_num!(num_syntaxerror, "SyntErr", red),
-                format_num!(num_solvererror, "SolvErr ", red),
-                format_num!(num_systemerror, "SysErr", red),
-                format!("Running: {running}"),
-            ];
+            let mut parts = Vec::with_capacity(10);
+            parts.push(format_num!(num_valid, "Valid", green));
+            parts.push(format_num!(num_emptysolution, "Empty   ", yellow));
+            parts.push(format_num!(num_infeasible, "Infeas", yellow, CRITICAL));
+            parts.push(format_num!(num_timeout, "Timeout", yellow));
+            if self.report_oom.load(Ordering::Acquire) {
+                parts.push(format_num!(num_outofmemory, "OutOfMem", yellow));
+            }
+            parts.push(format_num!(num_syntaxerror, "SyntErr", red));
+            parts.push(format_num!(num_solvererror, "SolvErr ", red));
+            parts.push(format_num!(num_systemerror, "SysErr", red));
+            parts.push(format!("Running: {running}"));
 
             self.status_line.set_message(parts.join(" | "));
         }
@@ -183,6 +195,9 @@ impl ProgressDisplay {
             }
             JobResult::EmptySolution => {
                 self.num_emptysolution.fetch_add(1, Ordering::AcqRel);
+            }
+            JobResult::OutOfMemory => {
+                self.num_outofmemory.fetch_add(1, Ordering::AcqRel);
             }
         }
     }
