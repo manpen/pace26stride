@@ -1,9 +1,10 @@
 use std::mem::MaybeUninit;
 use std::process::{Stdio, exit};
-use std::time::Instant;
+use std::time::{Instant};
 
 use super::arguments::CommandProfileArgs;
-use libc::rusage;
+use crate::job::job_processor::OOM_EXIT_CODE;
+use libc::{rlimit, rusage, setrlimit};
 use thiserror::Error;
 use tokio::process::Command;
 use tokio::signal::unix::{SignalKind, signal};
@@ -19,12 +20,41 @@ pub enum CommandProfileError {
 pub async fn command_profile(args: &CommandProfileArgs) -> Result<(), CommandProfileError> {
     // we are using the blocking variant here, since we have nothing else to do anyhow
     let start = Instant::now();
-    let mut child = Command::new(args.solver.clone())
+
+    let mut command = Command::new(args.solver.clone());
+    let command = command
         .args(args.solver_args.clone())
         .stdin(Stdio::inherit())
         .stdout(Stdio::inherit())
-        .stderr(Stdio::inherit())
-        .spawn()?;
+        .stderr(Stdio::inherit());
+
+    if let Some(memory_limit_in_mib) = args.memory_limit {
+        #[cfg(any(target_os = "linux", target_os = "macos"))]
+        unsafe {
+            command.pre_exec(move || {
+                let limit: u64 = memory_limit_in_mib as u64 * 1024 * 1024; // 512 MB
+
+                let rlim = rlimit {
+                    rlim_cur: limit,
+                    rlim_max: limit,
+                };
+
+                #[cfg(target_os = "linux")]
+                if setrlimit(libc::RLIMIT_AS, &rlim) != 0 {
+                    return Err(std::io::Error::last_os_error());
+                }
+
+                #[cfg(target_os = "macos")]
+                if setrlimit(libc::RLIMIT_RSS, &rlim) != 0 {
+                    return Err(std::io::Error::last_os_error());
+                }
+
+                Ok(())
+            });
+        }
+    }
+
+    let mut child = command.spawn()?;
 
     let mut stream_sigint = signal(SignalKind::interrupt())?;
     let mut stream_sigterm = signal(SignalKind::terminate())?;
@@ -43,9 +73,8 @@ pub async fn command_profile(args: &CommandProfileArgs) -> Result<(), CommandPro
                 }
             },
 
-
             status = child.wait() => {
-                break status?.code().unwrap_or(1);
+                break status?.code();
             }
         }
     };
@@ -60,7 +89,15 @@ pub async fn command_profile(args: &CommandProfileArgs) -> Result<(), CommandPro
     let usage = get_rusage_children();
     report_usage(usage);
 
-    exit(code);
+    if let Some(memory_limit_in_mib) = args.memory_limit
+        && code.is_none()
+        && usage.ru_maxrss as usize > memory_limit_in_mib * 1024 * 1024
+    {
+        println!("#s out_of_memory true");
+        exit(OOM_EXIT_CODE);
+    }
+
+    exit(code.unwrap_or(1));
 }
 
 fn get_rusage_children() -> rusage {

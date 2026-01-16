@@ -1,5 +1,6 @@
 use std::{fs::File, io::Write, path::PathBuf, process::ExitStatus, time::Duration};
 
+use crate::job::job_processor::OOM_EXIT_CODE;
 use derive_builder::Builder;
 use thiserror::Error;
 use tokio::{
@@ -13,6 +14,7 @@ pub enum ChildExitStatus {
     BeforeTimeout(ExitStatus),
     WithinGrace(ExitStatus),
     Timeout,
+    OutOfMemory,
 }
 
 impl ChildExitStatus {
@@ -21,6 +23,7 @@ impl ChildExitStatus {
             ChildExitStatus::BeforeTimeout(exit_status) => exit_status.success(),
             ChildExitStatus::WithinGrace(exit_status) => exit_status.success(),
             ChildExitStatus::Timeout => false,
+            ChildExitStatus::OutOfMemory => false,
         }
     }
 }
@@ -44,6 +47,10 @@ pub struct SolverExecutor {
 
     timeout: Duration,
     grace: Duration,
+
+    #[allow(dead_code)]
+    #[builder(default)]
+    memory_limit_in_mib: Option<usize>,
 
     #[builder(default)]
     runtime: Option<Duration>,
@@ -103,7 +110,13 @@ impl SolverExecutor {
         // we get an error if we run into the timeout
         if let Ok(res) = timeout(self.timeout, child.wait()).await {
             trace!("Child terminated within time: {res:?}");
-            return Ok(ChildExitStatus::BeforeTimeout(res?));
+
+            let res = res?;
+            if res.code().is_some_and(|c| c == OOM_EXIT_CODE) {
+                return Ok(ChildExitStatus::OutOfMemory);
+            }
+
+            return Ok(ChildExitStatus::BeforeTimeout(res));
         }
 
         debug!(
@@ -124,7 +137,12 @@ impl SolverExecutor {
         if !self.grace.is_zero()
             && let Ok(res) = timeout(self.grace, child.wait()).await
         {
-            return Ok(ChildExitStatus::WithinGrace(res?));
+            let res = res?;
+            if res.code().is_some_and(|c| c == OOM_EXIT_CODE) {
+                return Ok(ChildExitStatus::OutOfMemory);
+            }
+
+            return Ok(ChildExitStatus::WithinGrace(res));
         }
 
         debug!(

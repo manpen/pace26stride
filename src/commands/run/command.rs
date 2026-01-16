@@ -153,6 +153,7 @@ impl TaskContext {
         let run_dir = RunDirectory::new()?;
 
         let display = ProgressDisplay::new(0);
+        display.enable_oom_report(args.memory_limit.is_some());
 
         let summary_writer = SummaryWriter::new(&run_dir.path().join("summary.json")).await?;
 
@@ -194,6 +195,7 @@ async fn task_main(
             .solver_args(context.args.solver_args.clone())
             .soft_timeout(context.args.soft_timeout)
             .grace_period(context.args.grace_period)
+            .memory_limit_in_mib(context.args.memory_limit)
             .instance_path(instance.path().to_path_buf())
             .profiler(!context.args.no_profile)
             .set_stride_envs(!context.args.no_envs)

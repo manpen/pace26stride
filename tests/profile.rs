@@ -15,13 +15,18 @@ fn test_stride_path() -> PathBuf {
     PathBuf::from(env!("CARGO_BIN_EXE_stride"))
 }
 
-async fn run(instance: PathBuf, profiler: bool) -> (JobResult, HashMap<String, Value>) {
+async fn run(
+    instance: PathBuf,
+    profiler: bool,
+    memory_limit: Option<usize>,
+) -> (JobResult, HashMap<String, Value>) {
     let instance = test_testcases_dir().join(instance);
     let tempdir = TempDir::new("profile_test").unwrap();
     let run_dir = RunDirectory::new_within(tempdir.path()).unwrap();
     let work_dir = run_dir.create_task_dir_for(&instance).unwrap();
 
-    let job = JobProcessorBuilder::default()
+    let mut builder = JobProcessorBuilder::default();
+    builder
         .soft_timeout(Duration::from_secs_f64(1.5))
         .grace_period(Duration::from_secs_f64(1.5))
         .solver(test_solver_path())
@@ -30,8 +35,9 @@ async fn run(instance: PathBuf, profiler: bool) -> (JobResult, HashMap<String, V
         .instance_path(instance)
         .profiler(profiler)
         .profiler_executable(Some(test_stride_path()))
-        .build()
-        .unwrap();
+        .memory_limit_in_mib(memory_limit);
+
+    let job = builder.build().unwrap();
 
     let (job_result, solution_infos) = job.run().await;
 
@@ -47,20 +53,20 @@ async fn run(instance: PathBuf, profiler: bool) -> (JobResult, HashMap<String, V
 
 #[tokio::test]
 async fn valid_wo_profiler() {
-    let (result, _infos) = run(PathBuf::from("test_solver_valid/valid.in"), false).await;
+    let (result, _infos) = run(PathBuf::from("test_solver_valid/valid.in"), false, None).await;
     assert_eq!(result, JobResult::Valid { size: 2 });
 }
 
 #[tokio::test]
 async fn valid_with_profiler() {
-    let (result, _infos) = run(PathBuf::from("test_solver_valid/valid.in"), true).await;
+    let (result, _infos) = run(PathBuf::from("test_solver_valid/valid.in"), true, None).await;
     assert_eq!(result, JobResult::Valid { size: 2 });
 }
 
 #[tokio::test]
 async fn profile_time_shortwait() {
     // idle wait
-    let (result, infos) = run(PathBuf::from("test_solver_valid/shortwait.in"), true).await;
+    let (result, infos) = run(PathBuf::from("test_solver_valid/shortwait.in"), true, None).await;
     assert_eq!(result, JobResult::Valid { size: 2 });
 
     assert!(
@@ -77,7 +83,7 @@ async fn profile_time_shortwait() {
 
 #[tokio::test]
 async fn profile_time_busywait() {
-    let (result, infos) = run(PathBuf::from("test_solver_valid/busywait.in"), true).await;
+    let (result, infos) = run(PathBuf::from("test_solver_valid/busywait.in"), true, None).await;
     assert_eq!(result, JobResult::Valid { size: 2 });
 
     assert!(
@@ -95,15 +101,38 @@ async fn profile_time_busywait() {
 #[tokio::test]
 async fn profile_maxrss() {
     // idle wait
-    let (result, infos) = run(PathBuf::from("test_solver_valid/valid.in"), true).await;
+    let (result, infos) = run(PathBuf::from("test_solver_valid/valid.in"), true, None).await;
     assert_eq!(result, JobResult::Valid { size: 2 });
     let maxrss_before = infos.get("s_maxrss").unwrap().as_i64().unwrap();
 
     // busy wait
-    let (result, infos) = run(PathBuf::from("test_solver_valid/alloc50mb.in"), true).await;
+    let (result, infos) = run(PathBuf::from("test_solver_valid/alloc50mb.in"), true, None).await;
     assert_eq!(result, JobResult::Valid { size: 2 });
     let maxrss_after = infos.get("s_maxrss").unwrap().as_i64().unwrap();
 
-    // make sure it's atleast 30mb larger
+    // make sure it's at least 30mb larger
     assert!(maxrss_before + 30_000_000 < maxrss_after);
+}
+
+#[tokio::test]
+async fn memory_kill() {
+    let (result, infos) = run(PathBuf::from("test_solver_valid/valid.in"), true, None).await;
+    assert_eq!(result, JobResult::Valid { size: 2 });
+    let memory_in_mib = (infos.get("s_maxrss").unwrap().as_i64().unwrap() as usize) >> 20;
+
+    let (result, _) = run(
+        PathBuf::from("test_solver_valid/valid.in"),
+        true,
+        Some(memory_in_mib + 10),
+    )
+    .await;
+    assert_eq!(result, JobResult::Valid { size: 2 });
+
+    let (result, _) = run(
+        PathBuf::from("test_solver_valid/alloc50mb.in"),
+        true,
+        Some(30 + memory_in_mib),
+    )
+    .await;
+    assert!(result == JobResult::SolverError || result == JobResult::OutOfMemory);
 }
