@@ -7,7 +7,7 @@ default-run = "stride"
 [dependencies]
 pace26checker = { git = "https://github.com/manpen/pace26checker.git", features = ["with_digest"] }
 pace26remote = { git = "https://github.com/manpen/pace26remote.git", features = ["upload"] }
-pace26io = { version = "0.1.0" }
+pace26io = { version = "0.2" }
 
 chrono = "0.4.42"
 ctrlc = { version = "3.5.1", features = ["termination"] }
