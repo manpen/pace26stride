@@ -13,6 +13,8 @@ const JSON_KEY_INSTANCE_KEY: &str = "s_key";
 const JSON_KEY_INSTANCE_NAME: &str = "s_name";
 const JSON_KEY_INSTANCE_PATH: &str = "s_path";
 const JSON_KEY_INSTANCE_HASH: &str = "s_idigest";
+const JSON_KEY_NUM_TREES: &str = "s_num_trees";
+const JSON_KEY_NUM_LEAVES: &str = "s_num_leaves";
 const JSON_KEY_JOB_RESULT: &str = "s_result";
 const JSON_KEY_SOLUTION_SIZE: &str = "s_score";
 
@@ -54,9 +56,19 @@ impl SummaryWriter {
                 Value::String(idigest.to_string()),
             );
         }
+
         if let Some(name) = instance.name() {
             row.insert(JSON_KEY_INSTANCE_NAME.into(), Value::String(name.clone()));
         }
+
+        if let Some(trees) = instance.num_trees() {
+            row.insert(JSON_KEY_NUM_TREES.into(), trees.into());
+        }
+
+        if let Some(leaves) = instance.num_leaves() {
+            row.insert(JSON_KEY_NUM_LEAVES.into(), leaves.into());
+        }
+
         if let Some(prev_best) = prev_best_known {
             row.insert(JSON_KEY_PREV_BEST_KNOWN.into(), prev_best.into());
         }
