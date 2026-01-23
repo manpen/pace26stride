@@ -5,6 +5,8 @@ use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::Duration;
 use tokio::time::Instant;
+const HEURISTIC_SCORE_SCALER: f64 = (1u64 << 32) as f64;
+
 pub struct ProgressDisplay {
     mpb: MultiProgress,
     status_line: ProgressBar,
@@ -19,6 +21,10 @@ pub struct ProgressDisplay {
     num_systemerror: AtomicU64,
     num_solvererror: AtomicU64,
     num_timeout: AtomicU64,
+
+    // heuristic score is actually a f64 (values between 0..1); since there are no atomic floats
+    // we use fixed precision by with a scaler of HEURISTIC_SCORE_SCALER
+    sum_heuristic_score: AtomicU64,
 
     num_stride_instances: AtomicU64,
     num_stride_queued: AtomicU64,
@@ -60,6 +66,7 @@ impl ProgressDisplay {
             num_solvererror: Default::default(),
             num_timeout: Default::default(),
             num_emptysolution: Default::default(),
+            sum_heuristic_score: Default::default(),
 
             num_stride_instances: Default::default(),
             num_stride_queued: Default::default(),
@@ -131,7 +138,7 @@ impl ProgressDisplay {
                 format_num!(num_timeout, "Timeout", yellow),
                 format_num!(num_syntaxerror, "SyntErr", red),
                 format_num!(num_solvererror, "SolvErr ", red),
-                format_num!(num_systemerror, "SysErr", red),
+                format_num!(num_systemerror, "SystemErr ", red),
                 format!("Running: {running}"),
             ];
 
@@ -147,8 +154,13 @@ impl ProgressDisplay {
                 format_num!(num_stride_best_known, "Best ", green),
                 format_num!(num_stride_new_best_known, "New Best", yellow),
                 format_num!(num_stride_suboptimal, "Subopt", red, CRITICAL),
-                format_num!(num_stride_no_response, "No Resp", yellow),
-                format_num!(num_stride_queued, "Transmit Queue            ", green),
+                format!(
+                    "Heuristic Score: {:>10.5}",
+                    self.sum_heuristic_score.load(Ordering::Acquire) as f64
+                        / HEURISTIC_SCORE_SCALER
+                ),
+                format_num!(num_stride_queued, "Transmit Queue", green),
+                format_num!(num_stride_no_response, "NoResponse", yellow),
                 format_num!(num_stride_instances, "STRIDE Instances", white),
             ];
 
@@ -228,6 +240,12 @@ impl ProgressDisplay {
     pub fn stride_suboptimal(&self) {
         self.num_stride_queued.fetch_sub(1, Ordering::AcqRel);
         self.num_stride_suboptimal.fetch_add(1, Ordering::AcqRel);
+    }
+
+    pub fn stride_add_heuristic_score(&self, score: f64) {
+        let score_int = (score.clamp(0.0, 1.0) * HEURISTIC_SCORE_SCALER) as u64;
+        self.sum_heuristic_score
+            .fetch_add(score_int, Ordering::AcqRel);
     }
 }
 

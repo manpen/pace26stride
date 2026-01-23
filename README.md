@@ -174,15 +174,17 @@ Common data processing libraries natively support this format, e.g., [Polars](ht
 
 By default, we record the following columns:
 
-| Name         | Description                                                                      |
-|--------------|----------------------------------------------------------------------------------|
-| `s_key`      | Unique key within a run. If the instance logs are kept, the folder has this name |
-| `s_name`     | Name of the instance as indicated by the `#s name` line                          |
-| `s_instance` | Path to instance file                                                            |                                                 
-| `s_idigest`  | Hash value if instance is registered in the global stride database               | 
-| `s_solution` | Path to solution file (stdout)                                                   |  
-| `s_score`    | If `s_result` indicates a valid solution, report the number of tree in the MAF.  |
-| ...          | [Profiling](#profiling) related columns                                          |
+| Name         | Description                                                                                                      |
+|--------------|------------------------------------------------------------------------------------------------------------------|
+| `s_key`      | Unique key within a run. If the instance logs are kept, the folder has this name                                 |
+| `s_name`     | Name of the instance as indicated by the `#s name` line                                                          |
+| `s_instance` | Path to instance file                                                                                            |                                                 
+| `s_idigest`  | Hash value if instance is registered in the STRIDE database                                                      | 
+| `s_solution` | Path to solution file (stdout)                                                                                   |  
+| `s_score`    | If `s_result` indicates a valid solution, report the number of tree in the MAF.                                  |
+| `s_prev_best` | Best known score according to STRIDE server without accounting for this run                                     |
+| `s_heuristic_score` | Scoring function of PACE26 Heuristic Track (using min(`s_score`, `s_prev_score`) as best known solution   |
+| ...          | [Profiling](#profiling) related columns                                                                          |
 
 The column `s_result` can take the following values: 
  - `Valid`: the return solution is a feasible agreement forest (size is ignored)
