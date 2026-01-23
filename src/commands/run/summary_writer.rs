@@ -16,6 +16,8 @@ const JSON_KEY_INSTANCE_HASH: &str = "s_idigest";
 const JSON_KEY_JOB_RESULT: &str = "s_result";
 const JSON_KEY_SOLUTION_SIZE: &str = "s_score";
 
+const JSON_KEY_PACE_HEURISTIC_SCORE: &str = "s_heuristic_score";
+
 const JSON_KEY_PREV_BEST_KNOWN: &str = "s_prev_best";
 
 /// Maintains a machine-readable log file where each line corresponds to an completed task in JSON format
@@ -35,6 +37,7 @@ impl SummaryWriter {
         job_result: JobResult,
         opt_infos: Option<SolutionInfos>,
         prev_best_known: Option<u32>,
+        pace_heuristic_score: Option<f64>,
     ) -> Result<(), SummaryWriterError> {
         let mut row = Map::with_capacity(10);
 
@@ -55,9 +58,13 @@ impl SummaryWriter {
             row.insert(JSON_KEY_INSTANCE_NAME.into(), Value::String(name.clone()));
         }
         if let Some(prev_best) = prev_best_known {
+            row.insert(JSON_KEY_PREV_BEST_KNOWN.into(), prev_best.into());
+        }
+
+        if let Some(pace_heuristic_score) = pace_heuristic_score {
             row.insert(
-                JSON_KEY_PREV_BEST_KNOWN.into(),
-                Value::Number(prev_best.into()),
+                JSON_KEY_PACE_HEURISTIC_SCORE.into(),
+                pace_heuristic_score.into(),
             );
         }
 

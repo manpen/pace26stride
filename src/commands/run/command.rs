@@ -14,6 +14,7 @@ use std::{fs::File, sync::Arc};
 use thiserror::Error;
 use tracing::{error, trace};
 
+use crate::commands::run::pace::compute_pace_heuristic_score;
 use crate::commands::run::upload::{JobResultUploadAggregation, UploadError, UploadToStride};
 use crate::instances::instance::{InstanceError, collect_instances, sort_instances};
 use crate::instances::parser::InstanceSourceParser;
@@ -277,9 +278,27 @@ async fn task_main(
         None
     };
 
+    let pace_heuristic_score = if let Some(best_known) = best_known
+        && let Some(solver_score) = score
+        && let Some(num_leaves) = instance.num_leaves()
+    {
+        let heuristic_score =
+            compute_pace_heuristic_score(solver_score as usize, best_known as usize, num_leaves);
+        context.display.stride_add_heuristic_score(heuristic_score);
+        Some(heuristic_score)
+    } else {
+        None
+    };
+
     if let Err(e) = context
         .summary_writer
-        .add_entry(&instance, job_result, opt_info, best_known)
+        .add_entry(
+            &instance,
+            job_result,
+            opt_info,
+            best_known,
+            pace_heuristic_score,
+        )
         .await
     {
         error!("SummaryWriter error: {e:?}");
