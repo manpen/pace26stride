@@ -155,7 +155,11 @@ impl TaskContext {
 
         let display = ProgressDisplay::new(0);
 
-        let summary_writer = SummaryWriter::new(&run_dir.path().join("summary.json")).await?;
+        let mut summary_writer = SummaryWriter::new(&run_dir.path().join("summary.json")).await?;
+        summary_writer.set_run_name(args.run_name.clone());
+        if let Ok(path) = args.solver.canonicalize() {
+            summary_writer.set_solver_path(&path);
+        }
 
         Ok(Self {
             args,
