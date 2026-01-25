@@ -2,7 +2,7 @@ use crate::instances::instance::Instance;
 use crate::job::check_and_extract::SolutionInfos;
 use crate::job::job_processor::JobResult;
 use serde_json::{Map, Value};
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use thiserror::Error;
 use tokio::fs::File;
 use tokio::io::AsyncWriteExt;
@@ -10,6 +10,9 @@ use tokio::sync::Mutex;
 use tracing::warn;
 
 const JSON_KEY_INSTANCE_KEY: &str = "s_key";
+
+const JSON_KEY_SOLVER_PATH: &str = "s_solver_path";
+const JSON_KEY_RUN_NAME: &str = "s_run";
 const JSON_KEY_INSTANCE_NAME: &str = "s_name";
 const JSON_KEY_INSTANCE_PATH: &str = "s_path";
 const JSON_KEY_INSTANCE_HASH: &str = "s_idigest";
@@ -25,12 +28,26 @@ const JSON_KEY_PREV_BEST_KNOWN: &str = "s_prev_best";
 /// Maintains a machine-readable log file where each line corresponds to an completed task in JSON format
 pub struct SummaryWriter {
     file: Mutex<File>,
+    solver_path: Option<PathBuf>,
+    run_name: Option<String>,
 }
 
 impl SummaryWriter {
     pub async fn new(path: &Path) -> Result<Self, std::io::Error> {
         let file = Mutex::new(File::create_new(path).await?);
-        Ok(Self { file })
+        Ok(Self {
+            file,
+            solver_path: None,
+            run_name: None,
+        })
+    }
+
+    pub fn set_solver_path(&mut self, path: &Path) {
+        self.solver_path = Some(path.to_path_buf());
+    }
+
+    pub fn set_run_name(&mut self, name: Option<String>) {
+        self.run_name = name;
     }
 
     pub async fn add_entry(
@@ -42,6 +59,17 @@ impl SummaryWriter {
         pace_heuristic_score: Option<f64>,
     ) -> Result<(), SummaryWriterError> {
         let mut row = Map::with_capacity(10);
+
+        if let Some(path) = &self.solver_path {
+            row.insert(
+                JSON_KEY_SOLVER_PATH.into(),
+                Value::String(path.to_string_lossy().into()),
+            );
+        }
+
+        if let Some(run_name) = &self.run_name {
+            row.insert(JSON_KEY_RUN_NAME.into(), Value::String(run_name.into()));
+        }
 
         row.insert(
             JSON_KEY_INSTANCE_KEY.into(),

@@ -8,6 +8,7 @@ pub const ENV_SOFT_TIMEOUT: &str = "STRIDE_TIMEOUT";
 pub const ENV_GRACE_PERIOD: &str = "STRIDE_GRACE";
 pub const ENV_PARALLEL_JOBS: &str = "STRIDE_PARALLEL";
 pub const ENV_REQUIRE_OPTIMAL: &str = "STRIDE_OPTIMAL";
+pub const ENV_RUN_NAME: &str = "STRIDE_RUN_NAME";
 pub const ENV_KEEP_LOGS: &str = "STRIDE_KEEP";
 pub const ENV_STRIDE_MAX_RUN_LOGS: &str = "STRIDE_MAX_RUN_LOGS";
 pub const ENV_STRIDE_SERVER: &str = "STRIDE_SERVER";
@@ -114,7 +115,7 @@ pub struct CommandRunArgs {
     #[arg(
         short = 'E',
         long,
-        help = "Do not set STRIDE_* enviroment variable for solver"
+        help = "Do not set STRIDE_* environment variable for solver"
     )]
     pub no_envs: bool,
 
@@ -142,6 +143,14 @@ pub struct CommandRunArgs {
         help = "Treat suboptimal solutions as error, e.g. keep logs of suboptimal runs"
     )]
     pub require_optimal: bool,
+
+    #[arg(
+        short = 'n',
+        long,
+        env = ENV_RUN_NAME,
+        help = "Add optional `s_run` into summary.json"
+    )]
+    pub run_name: Option<String>,
 
     #[arg(short = 'S', long, env = ENV_STRIDE_SERVER, default_value = STRIDE_SERVER_DEFAULT, help = "Server to upload to")]
     pub stride_server: Url,
