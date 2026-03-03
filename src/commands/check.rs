@@ -1,5 +1,5 @@
 use crate::commands::arguments::CommandCheckArgs;
-use pace26checker::digest::algo::{digest_instance, digest_solution};
+use pace26checker::digest::algo::{digest_instance_with_approx, digest_solution};
 use pace26checker::{checks::checker::*, io::forest_dot_writer::ForestDotWriter};
 use pace26remote::job_description::JobDescription;
 use pace26remote::upload::{Upload, UploadError};
@@ -47,7 +47,9 @@ pub async fn command_check(args: &CommandCheckArgs) -> Result<(), CommandCheckEr
                     .iter()
                     .map(|(_, t)| t.clone())
                     .collect::<Vec<_>>();
-                let idigest = digest_instance(trees, instance.num_leaves);
+
+                let idigest =
+                    digest_instance_with_approx(trees, instance.num_leaves, instance.approx());
 
                 let trees = solution
                     .trees()
@@ -91,7 +93,8 @@ pub async fn command_check(args: &CommandCheckArgs) -> Result<(), CommandCheckEr
                 .iter()
                 .map(|(_, t)| t.clone())
                 .collect::<Vec<_>>();
-            let idigest = digest_instance(trees, instance.num_leaves);
+            let idigest =
+                digest_instance_with_approx(trees, instance.num_leaves, instance.approx());
 
             println!("#s idigest \"{idigest}\"");
         }
