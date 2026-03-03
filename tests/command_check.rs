@@ -150,18 +150,7 @@ fn invalid_cases() {
     }
 }
 
-#[test]
-fn digest() {
-    let instance_path = testcase_dir()
-        .join("valid_solutions")
-        .join("score10_n07l_lkc.in");
-    let solution_path = testcase_dir()
-        .join("valid_solutions")
-        .join("score10_n07l_lkc.out");
-
-    const IDIGEST: &str = "015e2a313c3470afe151d1ac2a20b0f3";
-    const SDIGEST: &str = "000a5d234052384b8fd9ea7bac0d3c17";
-
+fn test_digest(instance_path: &Path, idigest: &str, solution_path: &Path, sdigest: &str) {
     for with_solution in [false, true] {
         let mut args = vec![
             String::from("check"),
@@ -178,10 +167,40 @@ fn digest() {
         assert!(output.status.success());
         let stdout = String::from_utf8(output.stdout).unwrap();
 
-        assert!(stdout.contains(format!("#s idigest \"{IDIGEST}\"").as_str()));
+        assert!(stdout.contains(format!("#s idigest \"{idigest}\"").as_str()));
 
         if with_solution {
-            assert!(stdout.contains(format!("#s sdigest \"{SDIGEST}\"").as_str()));
+            assert!(stdout.contains(format!("#s sdigest \"{sdigest}\"").as_str()));
         }
     }
+}
+
+#[test]
+fn digest() {
+    let instance_path = testcase_dir()
+        .join("valid_solutions")
+        .join("score10_n07l_lkc.in");
+    let solution_path = testcase_dir()
+        .join("valid_solutions")
+        .join("score10_n07l_lkc.out");
+
+    const IDIGEST: &str = "015e2a313c3470afe151d1ac2a20b0f3";
+    const SDIGEST: &str = "000a5d234052384b8fd9ea7bac0d3c17";
+
+    test_digest(&instance_path, IDIGEST, &solution_path, SDIGEST);
+}
+
+#[test]
+fn digest_with_approx() {
+    let instance_path = testcase_dir()
+        .join("valid_solutions")
+        .join("score10_n07l_lkc_with_approx.in");
+    let solution_path = testcase_dir()
+        .join("valid_solutions")
+        .join("score10_n07l_lkc.out");
+
+    const IDIGEST: &str = "014a7e1e21661a4913f46daa871f53a3";
+    const SDIGEST: &str = "000a5d234052384b8fd9ea7bac0d3c17";
+
+    test_digest(&instance_path, IDIGEST, &solution_path, SDIGEST);
 }
